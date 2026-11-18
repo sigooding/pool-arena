@@ -186,12 +186,18 @@ class ShotDetector:
         # or a ball to a cushion" legality test in most rule sets).
         contact_t = onsets[0][0] if onsets else 0.0
         rails = 0
+        reached: set[int] = set()
         for n, tr in self._tracks.items():
             for name, t in tr.rails:
                 if t >= (contact_t or 0.0):
                     rails += 1
+                    reached.add(n)
                     ev.contacts.append(Contact(a=n, b=name, t=t))
         ev.rails_after_contact = rails
+        # The break rule is about distinct balls reaching a cushion, not about
+        # how many times cushions were struck: one ball rattling between two
+        # rails is not four balls to the rail.
+        ev.balls_to_rail = len(reached)
 
         ev.trace = {n: tr.points for n, tr in self._tracks.items() if len(tr.points) > 1}
 

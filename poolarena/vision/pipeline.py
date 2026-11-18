@@ -168,12 +168,26 @@ class VisionPipeline:
             tb = TrackedBall(num, d.x, d.y, d.kind, d.confidence)
             tb.vote(d.number, 2)
             self.tracks.append(tb)
+            if d.group:
+                # An unnumbered set: the number is a label this tracker hands
+                # out, so it must not be revised by later votes.
+                tb.votes.clear()
 
         self.tracks = [t for t in self.tracks if t.missing <= self.missing_limit]
 
+    # Reds take 1-7 and yellows 9-15, matching the internal convention in
+    # ballset.py, so the 8-ball rule set needs no idea which set is on the
+    # cloth. Within a colour the choice is arbitrary, which is correct: one
+    # red is not distinguishable from another, by camera or by player.
+    GROUP_RANGES = {"reds": range(1, 8), "yellows": range(9, 16)}
+
     def _free_number(self, d: Detection) -> int:
         used = {t.number for t in self.tracks}
-        for n in range(1, 16):
+        candidates = self.GROUP_RANGES.get(d.group or "", range(1, 16))
+        for n in candidates:
+            if n not in used:
+                return n
+        for n in range(1, 16):          # group full: fall back to anything free
             if n not in used:
                 return n
         return -1

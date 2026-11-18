@@ -59,6 +59,16 @@ What you have, and it works:
 
 **Kinect v1 (Xbox 360): don't.** At 640×480 a ball is about 14 px across.
 
+### Reds and yellows are easier to see than a numbered set
+
+If you have a UK blackball set, the vision problem gets markedly simpler: two
+well-separated hues plus a black and a white, instead of seven hues that have
+to be told apart *and* a stripe-versus-glare judgement on every ball. Run with
+`--ball-set english` and the detector switches models.
+
+The trade is that no camera can tell one red from another — so 9-ball and
+cut-throat are unavailable, by design, rather than being scored by guesswork.
+
 ### A plain webcam instead
 
 A 1080p UVC webcam works and is simpler. You lose depth-based obstruction

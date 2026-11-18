@@ -15,6 +15,7 @@ import time
 import webbrowser
 from pathlib import Path
 
+from .ballset import get_ball_set
 from .engine import Engine
 from .geometry import Calibration, Table
 from .rules import available
@@ -24,6 +25,16 @@ from .types import TableState
 ROOT = Path(__file__).resolve().parent.parent
 OVERLAY = ROOT / "overlay"
 CONFIG = ROOT / "config"
+
+
+def load_ball_set(args):
+    """Command line wins, then the table config, then American."""
+    if getattr(args, "ball_set", None):
+        return get_ball_set(args.ball_set)
+    cfg_path = Path(args.config) if args.config else CONFIG / "table.json"
+    if cfg_path.exists():
+        return get_ball_set(json.loads(cfg_path.read_text()).get("ball_set"))
+    return get_ball_set(None)
 
 
 def load_table(args) -> Table:
@@ -41,9 +52,11 @@ def load_table(args) -> Table:
     return t
 
 
-def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool):
+def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
+                 ball_set=None):
+    bs = ball_set or get_ball_set(None)
     routes = {
-        "/api/games": lambda: {"games": available()},
+        "/api/games": lambda: {"games": available(bs), "ball_set": bs.to_json()},
         "/api/table": lambda: table.to_json(),
     }
     httpd = serve(engine_hub, OVERLAY, port=port, http_routes=routes)
@@ -68,10 +81,11 @@ def cmd_demo(args) -> int:
     from .sim import FakeTable, auto_shot
 
     table = load_table(args)
+    ball_set = load_ball_set(args)
     hub = Hub()
-    engine = Engine(table=table, hub=hub,
+    engine = Engine(table=table, hub=hub, ball_set=ball_set,
                     log_path=Path(args.log) if args.log else None)
-    start_server(hub, table, args.port, not args.no_browser)
+    start_server(hub, table, args.port, not args.no_browser, ball_set)
 
     sim = FakeTable(table=table, rng=random.Random(args.seed))
     sim.rack("9ball" if args.game == "9ball" else "8ball")
@@ -153,22 +167,25 @@ def cmd_run(args) -> int:
     calib = Calibration.load(calib_path)
     print(f"  calibration {calib.label}, rms {calib.error_mm:.1f} mm")
 
+    ball_set = load_ball_set(args)
     det_cfg = {}
     det_path = CONFIG / "detector.json"
     if det_path.exists():
         det_cfg = json.loads(det_path.read_text())
+    det_cfg.setdefault("ball_set", ball_set.name)
     if args.weights:
         det_cfg = {"detector": "yolo", "weights": args.weights}
     detector = build_detector(det_cfg)
 
     hub = Hub()
-    engine = Engine(table=table, hub=hub,
+    engine = Engine(table=table, hub=hub, ball_set=ball_set,
                     log_path=Path(args.log) if args.log else None)
-    start_server(hub, table, args.port, not args.no_browser)
+    start_server(hub, table, args.port, not args.no_browser, ball_set)
 
     source = open_source(args.source)
     pipeline = VisionPipeline(table, calib, detector)
     print(f"  source      {source.name}")
+    print(f"  balls       {ball_set.title}")
     print(f"  game        {args.game}\n")
 
     engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
@@ -223,9 +240,10 @@ def cmd_calibrate(args) -> int:
 def cmd_replay(args) -> int:
     """Replay a shot log through a game, which is how rules get regression-tested."""
     table = load_table(args)
+    ball_set = load_ball_set(args)
     hub = Hub()
-    engine = Engine(table=table, hub=hub)
-    start_server(hub, table, args.port, not args.no_browser)
+    engine = Engine(table=table, hub=hub, ball_set=ball_set)
+    start_server(hub, table, args.port, not args.no_browser, ball_set)
     engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
 
     records = [json.loads(l) for l in Path(args.log).read_text().splitlines() if l.strip()]
@@ -246,9 +264,13 @@ def cmd_replay(args) -> int:
 
 
 def cmd_games(args) -> int:
-    for g in available():
-        print(f"  {g['name']:<10} {g['title']:<18} {g['min_players']}-{g['max_players']}p  "
-              f"{g['description']}")
+    bs = load_ball_set(args)
+    print(f"  ball set: {bs.title}\n")
+    for g in available(bs):
+        mark = " " if g["supported"] else "x"
+        note = "" if g["supported"] else "   (needs numbered balls)"
+        print(f" {mark} {g['name']:<10} {g['title']:<18} "
+              f"{g['min_players']}-{g['max_players']}p  {g['description']}{note}")
     return 0
 
 
@@ -268,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="table config json")
     common.add_argument("--size", default="8ft", help="7ft|8ft|8ft-pro|9ft|10ft|snooker")
+    common.add_argument("--ball-set", default=None,
+                        help="american (numbered 1-15) | english (reds and yellows)")
     common.add_argument("--port", type=int, default=8777)
     common.add_argument("--no-browser", action="store_true")
     common.add_argument("--game", default="8ball")

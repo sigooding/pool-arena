@@ -14,6 +14,35 @@ python -m poolarena games
 | `roulette` | Pocket Roulette | 1–6 | **Projector-native.** The table picks which pocket you must use |
 | `position` | Position Drill | 1–4 | **Projector-native.** Pot, then stop the cue ball in the ring |
 
+## Ball sets
+
+Two worlds, and they are not interchangeable:
+
+| | American | English (blackball) |
+|---|---|---|
+| balls | 15 numbered, 1-7 solid, 9-15 striped | 7 reds, 7 yellows, 1 black |
+| identity | every ball is distinguishable | balls within a colour are identical |
+| groups called | solids / stripes | reds / yellows |
+
+Set it in `config/table.json` or with `--ball-set english`.
+
+Internally the numbering is the same either way — reds take 1-7, yellows
+9-15, black is 8 — so the rule sets, the event detector and every projected
+effect work unchanged. Only the labels and the detector's colour model differ.
+
+What that cannot paper over is identity. In an English set those numbers are
+labels the tracker hands out, not something a camera (or a player) could read
+off the ball. Any game that needs real identity is therefore **refused rather
+than quietly scored wrong**:
+
+| game | American | English |
+|---|---|---|
+| 8-ball, killer, hotspots, roulette, position | yes | yes |
+| 9-ball, cut-throat | yes | **no** — needs numbered balls |
+
+If you write a game that only cares about colour or count, set
+`needs_numbered_balls = False` on the class and it becomes available to both.
+
 ## Options
 
 Passed as a dict to the game, or over the websocket:

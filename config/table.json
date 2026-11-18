@@ -4,5 +4,7 @@
   "width": 1118.0,
   "ball_radius": 28.6,
   "pocket_capture": 70.0,
-  "_comment": "Playing surface inside the cushions, in millimetres. Measure your own table: nominal sizes vary by manufacturer. Sizes known by name: 7ft 8ft 8ft-pro 9ft 10ft snooker."
+  "_comment": "Playing surface inside the cushions, in millimetres. Measure your own table: nominal sizes vary by manufacturer. Sizes known by name: 7ft 8ft 8ft-pro 9ft 10ft snooker.",
+  "ball_set": "american",
+  "_ball_set": "american = numbered 1-15. english = reds and yellows (UK blackball), which has no numbers, so 9-ball and cut-throat are unavailable and everything else plays the same."
 }

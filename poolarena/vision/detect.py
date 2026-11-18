@@ -37,6 +37,7 @@ class Detection:
     white_frac: float = 0.0
     hue: float = 0.0
     value: float = 0.0
+    group: str | None = None     # "reds"/"yellows" when the set is unnumbered
 
 
 class BallDetector(ABC):
@@ -52,9 +53,11 @@ class ColorBallDetector(BallDetector):
     """Classic CV. Fast, explainable, and tunable from a config file."""
 
     def __init__(self, ball_px: float = 36.0, cloth_tolerance: int = 34,
-                 min_fill: float = 0.45, white_v: int = 165, white_s: int = 70) -> None:
+                 min_fill: float = 0.45, white_v: int = 165, white_s: int = 70,
+                 ball_set: str = "american") -> None:
         import cv2
         self.cv2 = cv2
+        self.ball_set = ball_set
         self.ball_px = ball_px
         self.cloth_tolerance = cloth_tolerance
         self.min_fill = min_fill
@@ -153,6 +156,31 @@ class ColorBallDetector(BallDetector):
         y0, y1 = int(max(0, cy - r * 0.72)), int(min(h, cy + r * 0.72))
         return img[y0:y1, x0:x1]
 
+    def _classify_english(self, d: Detection) -> Detection:
+        """Reds and yellows: three colours and the cue, no stripe test.
+
+        This is a much easier problem than the American set — two well
+        separated hues instead of seven, and no need to decide whether a white
+        patch is a stripe or a glare highlight. Identity within a colour is
+        not recoverable and does not need to be: the numbers are labels the
+        tracker hands out, and only the colour carries meaning.
+        """
+        hue, wfrac = d.hue, d.white_frac
+        red = min(abs(hue - 0), 180 - abs(hue - 0)) < 18 or abs(hue - 179) < 18
+        yellow = abs(hue - 28) < 20
+        if red:
+            d.kind, d.number, d.confidence = Kind.SOLID, None, 0.85
+            d.group = "reds"
+        elif yellow:
+            d.kind, d.number, d.confidence = Kind.STRIPE, None, 0.85
+            d.group = "yellows"
+        else:
+            # Neither hue read cleanly; fall back on brightness.
+            d.group = "reds" if d.value < 120 else "yellows"
+            d.confidence = 0.3
+        void = wfrac
+        return d
+
     def _classify(self, warped: np.ndarray, cx: float, cy: float, r: float) -> Detection:
         cv2 = self.cv2
         patch = self._patch(warped, cx, cy, r)
@@ -175,6 +203,9 @@ class ColorBallDetector(BallDetector):
         if dark > 0.6 and wfrac < 0.3:
             d.kind, d.number, d.confidence = Kind.EIGHT, 8, 0.8
             return d
+
+        if self.ball_set == "english":
+            return self._classify_english(d)
 
         # Nearest named hue, then stripe-vs-solid by how much white is showing.
         best, best_d = None, 999.0
@@ -232,4 +263,5 @@ def build_detector(cfg: dict[str, Any]) -> BallDetector:
         ball_px=cfg.get("ball_px", 36.0),
         cloth_tolerance=cfg.get("cloth_tolerance", 34),
         min_fill=cfg.get("min_fill", 0.45),
+        ball_set=cfg.get("ball_set", "american"),
     )

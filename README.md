@@ -38,10 +38,15 @@ colour-coded shot feed:
 - **Four-corner keystone calibration** in the browser, so the projector does
   not have to be square to the table.
 - **A tablet scoreboard** with a live top-down table view, drawn from the same
-  state stream, that works from a phone up to a wall display.
+  state stream, that works from a phone up to a wall display — including a
+  calibration pad that drives the projector, so you align it standing at the
+  table rather than at the PC.
+- **Both ball sets**: American numbered 1-15, or English reds and yellows
+  (`--ball-set english`). Games that genuinely need numbered balls are refused
+  on an English set rather than scored by guesswork.
 - **A simulator** good enough to develop and demo the whole system without a
   camera, a projector or a table.
-- **44 tests** covering geometry, shot detection, every rule set and the full
+- **55 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet
@@ -49,6 +54,9 @@ colour-coded shot feed:
 - The colour detector is written and reasonable but **has not been tuned
   against a real table** — that needs your cloth, your lights and your camera.
   Expect to spend an evening on `config/detector.json`.
+- **No cue-ball-in-hand placement.** After a scratch the engine says "ball in
+  hand"; nothing enforces where the cue ball is put back.
+- **No undo.** A mis-scored shot cannot be corrected from the tablet yet.
 - Live cue-stick tracking (the "draw the line I'm actually on" feature) is
   designed for but not built.
 - No audio.

@@ -37,6 +37,31 @@
       <button class="go" id="start">Start game</button>
       <button id="pass">Pass turn</button>
       <button id="boom">Test effect</button>
+      <button id="calib">Calibrate projector</button>
+    </div>
+  </section>
+
+  <section class="calib-panel" id="calib-panel" hidden>
+    <div class="calib-head">
+      <strong>Projector calibration</strong>
+      <span>Pick a corner, then nudge it onto the matching corner of the cushion.</span>
+    </div>
+    <div class="calib-body">
+      <div class="corner-pick" id="corner-pick">
+        <button data-c="0">TL</button><button data-c="1">TR</button>
+        <button data-c="3">BL</button><button data-c="2">BR</button>
+      </div>
+      <div class="dpad" id="dpad">
+        <button data-dx="0"  data-dy="-1" class="up">▲</button>
+        <button data-dx="-1" data-dy="0"  class="left">◀</button>
+        <button data-dx="1"  data-dy="0"  class="right">▶</button>
+        <button data-dx="0"  data-dy="1"  class="down">▼</button>
+        <label class="step"><input type="checkbox" id="big-step"> 10 px</label>
+      </div>
+      <div class="calib-actions">
+        <button id="calib-reset">Reset corners</button>
+        <button class="go" id="calib-done">Done</button>
+      </div>
     </div>
   </section>
 

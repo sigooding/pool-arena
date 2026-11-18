@@ -18,9 +18,27 @@ export const CLOTH = '#1B6E54';
 export const CLOTH_DARK = '#14543F';
 export const RAIL = '#3B2416';
 
-/** Colour and stripe flag for any ball number. */
+// Which set is racked. Set once from the server's `table` message; the
+// renderers below read it so a red ball is drawn red rather than as whatever
+// the American set puts at that number.
+let SET = { name: 'american', has_numbers: true };
+export function setBallSet(s) { if (s) SET = s; }
+export function ballSet() { return SET; }
+
+const ENGLISH_RED = '#DC2626';
+const ENGLISH_YELLOW = '#F2B705';
+
+/** Colour, ink and stripe flag for any ball number, for the current set. */
 export function ballStyle(n) {
   if (n === 0) return { fill: BALL[0].solid, ink: BALL[0].ink, striped: false };
+  // The black in an English set is plain, with no number printed on it.
+  if (n === 8) return { fill: BALL[8].solid, ink: BALL[8].ink, striped: false,
+                        unnumbered: !SET.has_numbers };
+  if (!SET.has_numbers) {
+    // Reds and yellows: no stripes, and no numbers to print.
+    return { fill: n < 8 ? ENGLISH_RED : ENGLISH_YELLOW, ink: '#15161A',
+             striped: false, unnumbered: true };
+  }
   const base = BALL[n > 8 ? n - 8 : n] || BALL[8];
   return { fill: base.solid, ink: base.ink, striped: n > 8 };
 }
@@ -31,7 +49,7 @@ export function ballStyle(n) {
  * 9-ball looks like a 9-ball in both places.
  */
 export function drawBall(ctx, x, y, r, n, opts = {}) {
-  const { fill, ink, striped } = ballStyle(n);
+  const { fill, ink, striped, unnumbered } = ballStyle(n);
   ctx.save();
   ctx.translate(x, y);
 
@@ -69,7 +87,7 @@ export function drawBall(ctx, x, y, r, n, opts = {}) {
   ctx.fillStyle = g;
   ctx.fill();
 
-  if (n > 0 && opts.number !== false && r > 7) {
+  if (n > 0 && opts.number !== false && r > 7 && !unnumbered) {
     const nr = r * 0.56;
     ctx.beginPath();
     ctx.arc(0, 0, nr, 0, Math.PI * 2);
@@ -86,13 +104,16 @@ export function drawBall(ctx, x, y, r, n, opts = {}) {
 
 /** An <span> chip of a ball, for the roster and the shot feed. */
 export function ballChip(n, size = 26) {
-  const { fill, striped } = ballStyle(n);
+  const { fill, striped, unnumbered } = ballStyle(n);
   const el = document.createElement('span');
   el.className = 'ball' + (striped ? ' striped' : '');
   el.style.setProperty('--ball', fill);
   el.style.setProperty('--size', size + 'px');
-  el.textContent = n === 0 ? '' : String(n);
-  el.title = n === 0 ? 'cue ball' : `${striped ? 'stripe' : 'solid'} ${n}`;
+  el.textContent = (n === 0 || unnumbered) ? '' : String(n);
+  if (n === 0) el.title = 'cue ball';
+  else if (n === 8) el.title = 'black';
+  else if (unnumbered) el.title = n < 8 ? 'red' : 'yellow';
+  else el.title = `${striped ? 'stripe' : 'solid'} ${n}`;
   return el;
 }
 

@@ -3,7 +3,7 @@
 // It subscribes to the same stream as the projector, so it needs no polling and
 // no state of its own beyond what the engine last said.
 
-import { ballRow } from './balls.js';
+import { ballRow, setBallSet } from './balls.js';
 import { MiniTable } from './minitable.js';
 
 const el = (id) => document.getElementById(id);
@@ -35,8 +35,15 @@ const send = (o) => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
 
 function route(msg) {
   switch (msg.type) {
-    case 'games':      games = msg.games; renderGames(); break;
-    case 'table':      mini.setTable(msg.table); break;
+    case 'games':
+      games = msg.games;
+      if (msg.ball_set) applyBallSet(msg.ball_set);
+      renderGames();
+      break;
+    case 'table':
+      if (msg.ball_set) applyBallSet(msg.ball_set);
+      mini.setTable(msg.table);
+      break;
     case 'state':      mini.setBalls(msg.state.balls || []); break;
     case 'scoreboard': board = msg.scoreboard; render(); break;
     case 'shot':       pushShot(msg.shot); break;
@@ -60,6 +67,14 @@ function showAlert(text) {
 }
 
 // --- game picker ----------------------------------------------------------
+let ballSetInfo = { name: 'american', title: 'American', has_numbers: true };
+
+function applyBallSet(bs) {
+  ballSetInfo = bs;
+  setBallSet(bs);
+  mini.draw();
+}
+
 function renderGames() {
   const wrap = el('games');
   wrap.textContent = '';
@@ -67,14 +82,21 @@ function renderGames() {
     const b = document.createElement('button');
     b.className = 'chip';
     b.type = 'button';
+    b.disabled = g.supported === false;
     b.setAttribute('aria-pressed', String(picked === g.name));
     b.innerHTML = `<b></b><i></i>`;
     b.querySelector('b').textContent = g.title;
     b.querySelector('i').textContent = g.description;
-    b.onclick = () => pick(g.name);
+    if (!b.disabled) b.onclick = () => pick(g.name);
     wrap.appendChild(b);
   }
-  if (!picked && games.length) pick(games[0].name, false);
+  const hint = el('roster-hint');
+  if (hint) hint.dataset.set = ballSetInfo.title || '';
+  // Never leave an unplayable game selected.
+  const playable = games.filter((g) => g.supported !== false);
+  if (playable.length && !playable.some((g) => g.name === picked)) {
+    pick(playable[0].name, false);
+  }
 }
 
 function pick(name, fixRoster = true) {
@@ -225,6 +247,44 @@ el('pass').onclick = () => send({ type: 'next_turn' });
 el('boom').onclick = () => send({
   type: 'test_effect', name: 'fireworks', args: { duration: 2500, palette: 'rainbow' },
 });
+
+// --- projector calibration, driven from here --------------------------------
+// The overlay's hotkeys only work at the PC. These controls send the same
+// nudges over the socket so you can calibrate standing at the table, watching
+// the projection rather than the keyboard.
+let corner = 0;
+
+function setCorner(c) {
+  corner = c;
+  [...el('corner-pick').children].forEach((b) =>
+    b.setAttribute('aria-pressed', String(Number(b.dataset.c) === c)));
+}
+
+el('corner-pick').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (b) setCorner(Number(b.dataset.c));
+};
+
+el('dpad').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b || !b.dataset.dx) return;
+  const step = el('big-step').checked ? 10 : 1;
+  send({ type: 'projector_nudge', corner,
+         dx: Number(b.dataset.dx) * step, dy: Number(b.dataset.dy) * step });
+};
+
+el('calib').onclick = () => {
+  const panel = el('calib-panel');
+  const opening = panel.hidden;
+  panel.hidden = !opening;
+  send({ type: 'calibrate', on: opening });
+  if (opening) setCorner(0);
+};
+el('calib-reset').onclick = () => send({ type: 'projector_nudge', reset: true });
+el('calib-done').onclick = () => {
+  el('calib-panel').hidden = true;
+  send({ type: 'calibrate', on: false });
+};
 
 // --- go -------------------------------------------------------------------
 mini = new MiniTable(el('mini'));

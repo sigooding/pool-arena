@@ -96,7 +96,8 @@ class ShotEvents:
     pocketed_in: dict[int, str] = field(default_factory=dict)   # ball -> pocket id
     cue_scratched: bool = False
     first_contact: int | None = None    # first ball the cue ball touched
-    rails_after_contact: int = 0
+    rails_after_contact: int = 0        # total cushion touches after contact
+    balls_to_rail: int = 0              # distinct balls that reached a cushion
     cue_struck: bool = True             # False == no shot taken / cue never moved
     contacts: list[Contact] = field(default_factory=list)
     trace: dict[int, list[tuple[float, float]]] = field(default_factory=dict)
@@ -109,6 +110,7 @@ class ShotEvents:
             "cue_scratched": self.cue_scratched,
             "first_contact": self.first_contact,
             "rails_after_contact": self.rails_after_contact,
+            "balls_to_rail": self.balls_to_rail,
             "cue_struck": self.cue_struck,
             "duration": round(self.duration, 2),
         }

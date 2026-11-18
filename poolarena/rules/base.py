@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from ..ballset import AMERICAN, BallSet
 from ..geometry import Table
 from ..types import Effect, Player, ShotEvents, ShotResult, TableState
 
@@ -41,13 +42,29 @@ class Game(ABC):
     description: str = ""
     min_players: int = 1
     max_players: int = 8
+    # True when the game needs to tell one ball of a group from another. False
+    # for anything that only cares about colour or count, which is what makes
+    # it playable with an English reds-and-yellows set.
     needs_numbered_balls: bool = True
 
+    @classmethod
+    def supports(cls, ball_set: BallSet) -> bool:
+        return ball_set.has_numbers or not cls.needs_numbered_balls
+
+    @classmethod
+    def describe(cls, ball_set: BallSet) -> str:
+        """Description for the menu. Overridden where the wording depends on
+        what is actually racked — "solids or stripes" is wrong at a table of
+        reds and yellows."""
+        return cls.description
+
     def __init__(self, players: list[str] | None = None, table: Table | None = None,
-                 options: dict[str, Any] | None = None) -> None:
+                 options: dict[str, Any] | None = None,
+                 ball_set: BallSet | None = None) -> None:
         names = players or ["Player 1", "Player 2"]
         self.players = [Player(name=n) for n in names]
         self.table = table or Table()
+        self.ball_set = ball_set or AMERICAN
         self.options = options or {}
         self.turn = 0
         self.shot_number = 0
@@ -160,9 +177,12 @@ def get_game(name: str) -> type[Game]:
     return _REGISTRY[name]
 
 
-def available() -> list[dict[str, Any]]:
+def available(ball_set: BallSet | None = None) -> list[dict[str, Any]]:
+    bs = ball_set or AMERICAN
     return [
-        {"name": c.name, "title": c.title, "description": c.description,
-         "min_players": c.min_players, "max_players": c.max_players}
+        {"name": c.name, "title": c.title, "description": c.describe(bs),
+         "min_players": c.min_players, "max_players": c.max_players,
+         "supported": c.supports(bs),
+         "needs_numbered_balls": c.needs_numbered_balls}
         for c in sorted(_REGISTRY.values(), key=lambda c: c.title)
     ]

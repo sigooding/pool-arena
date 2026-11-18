@@ -8,6 +8,7 @@
 
 import { View } from './view.js';
 import { makeEffect } from './effects.js';
+import { setBallSet } from './balls.js';
 
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
@@ -39,6 +40,7 @@ const scene = {
 
 const view = new View(scene.table);
 let effects = [];
+let selected = 0;          // corner being nudged, from keys or from the tablet
 let showBalls = localStorage.getItem('poolarena.showBalls') === '1';
 let showTrails = true;
 let clipToTable = localStorage.getItem('poolarena.clip') !== '0';
@@ -92,6 +94,7 @@ function setStatus(text, ok) {
 function handle(msg) {
   switch (msg.type) {
     case 'table':
+      setBallSet(msg.ball_set);
       scene.table = { ...DEFAULT_TABLE, ...msg.table };
       scene.pocketMap = null;
       if (msg.table.pockets) scene.pocketMap = msg.table.pockets;
@@ -119,6 +122,22 @@ function handle(msg) {
       break;
     case 'projector_calibration':
       if (msg.corners) view.setCorners(msg.corners);
+      break;
+    case 'calibrate':
+      view.calibrating = !!msg.on;
+      helpEl.classList.toggle('show', view.calibrating);
+      break;
+    case 'projector_nudge':
+      if (msg.reset) {
+        view.corners = view.defaultCorners(window.innerWidth, window.innerHeight);
+        view.solve();
+      } else {
+        selected = Math.max(0, Math.min(3, msg.corner));
+        view.dragging = selected;
+        view.nudge(selected, msg.dx, msg.dy);
+      }
+      view.save();
+      pushCalibration();
       break;
     default:
       break;
@@ -323,7 +342,6 @@ function renderHelp() {
   helpEl.innerHTML = HELP.map(([k, v]) => `<div><kbd>${k}</kbd><span>${v}</span></div>`).join('');
 }
 
-let selected = 0;
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'c') {

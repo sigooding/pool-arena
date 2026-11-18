@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from ..geometry import Table, shot_candidates
 from ..types import Ball, TableState, kind_of
 
-DT = 1.0 / 240.0          # physics step
+DT = 1.0 / 240.0          # nominal physics step, subdivided when balls are fast
+MAX_STEP_MM = 1.5         # no ball may travel further than this in one step
 FRICTION = 0.48           # m/s^2-ish, tuned by eye against real roll-out
 CUSHION_LOSS = 0.82
 BALL_LOSS = 0.96
@@ -121,11 +122,32 @@ class FakeTable:
     # --- stepping ----------------------------------------------------------
     def step_frame(self) -> TableState:
         """Advance one camera frame and return the state the camera would see."""
-        steps = max(1, int((1.0 / self.fps) / DT))
-        for _ in range(steps):
-            self._physics(DT)
+        self.advance(1.0 / self.fps)
         self.t += 1.0 / self.fps
         return self.state()
+
+    def advance(self, dt: float) -> None:
+        """Integrate `dt`, subdividing so no ball outruns the collision test.
+
+        A fixed step is wrong here. At break speed a ball covers a third of its
+        own diameter per 1/240 s, so by the time an overlap is noticed the two
+        centres are deeply interpenetrated and the contact normal — which is
+        taken from those centres — is skewed. The object ball leaves along that
+        normal, so the error lands directly on thin cuts, exactly the shots
+        where accuracy matters most.
+        """
+        vmax = 0.0
+        for b in self.balls:
+            if b.live:
+                vmax = max(vmax, math.hypot(b.vx, b.vy))
+        if vmax <= 0.0:
+            self._physics(dt)
+            return
+        n = int(math.ceil(vmax * dt / MAX_STEP_MM))
+        n = max(1, min(n, 4000))
+        h = dt / n
+        for _ in range(n):
+            self._physics(h)
 
     def run_shot(self, max_seconds: float = 20.0) -> list[TableState]:
         """Step until everything is at rest; return every frame."""

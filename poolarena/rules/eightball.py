@@ -15,6 +15,9 @@ class EightBall(Game):
     description = "Solids or stripes, then the 8"
     min_players = 2
     max_players = 2
+    # Only the two groups matter, never which ball within one, so this plays
+    # exactly the same with an English reds-and-yellows set.
+    needs_numbered_balls = False
 
     def __init__(self, *a, **kw) -> None:
         super().__init__(*a, **kw)
@@ -24,16 +27,24 @@ class EightBall(Game):
         self.called: str | None = None     # pocket id called for the 8
 
     # --- helpers -----------------------------------------------------------
+    @property
+    def low_group(self) -> str:
+        return self.ball_set.group_names[0]      # solids, or reds
+
+    @property
+    def high_group(self) -> str:
+        return self.ball_set.group_names[1]      # stripes, or yellows
+
     def group_of(self, player: int) -> set[int] | None:
         g = self.players[player].group
-        if g == "solids":
+        if g == self.low_group:
             return SOLIDS
-        if g == "stripes":
+        if g == self.high_group:
             return STRIPES
         return None
 
     def assign(self, player: int, group: str) -> None:
-        other = "stripes" if group == "solids" else "solids"
+        other = self.high_group if group == self.low_group else self.low_group
         self.players[player].group = group
         self.players[1 - player].group = other
         self.open_table = False
@@ -45,6 +56,16 @@ class EightBall(Game):
         if grp is None:
             return False
         return not (grp & state.numbers())
+
+    @classmethod
+    def describe(cls, ball_set):
+        a, b = ball_set.group_names
+        last = "the 8" if ball_set.has_numbers else "the black"
+        return f"{a.capitalize()} or {b}, then {last}"
+
+    def on_start(self):
+        self.description = self.describe(self.ball_set)
+        return super().on_start()
 
     def on_turn_start(self, state):
         fx = []
@@ -87,8 +108,9 @@ class EightBall(Game):
                 res.ball_in_hand = True
                 res.effects += self.foul_effects(res.foul)
                 return res
-            if not pocketed and ev.rails_after_contact < 4:
-                res.foul = "illegal break (fewer than four rails)"
+            if not pocketed and ev.balls_to_rail < 4:
+                res.foul = (f"illegal break (only {ev.balls_to_rail} "
+                            f"ball{'' if ev.balls_to_rail == 1 else 's'} to a rail)")
                 res.turn_passes = True
                 res.effects += self.foul_effects(res.foul)
                 return res
@@ -103,8 +125,9 @@ class EightBall(Game):
             foul = "no ball hit"
         elif not legal_target:
             hit = ev.first_contact
-            want = "the 8" if self.on_eight(me, ctx.before) else (self.players[me].group or "any ball")
-            foul = f"hit the {hit} first, needed {want}"
+            want = ("the black" if self.on_eight(me, ctx.before)
+                    else (self.players[me].group or "any ball"))
+            foul = f"hit {self.ball_set.a_ball(hit)} first, needed {want}"
         elif ev.cue_scratched:
             foul = "scratch"
         elif not pocketed and ev.rails_after_contact == 0:
@@ -119,10 +142,10 @@ class EightBall(Game):
                 if called_ok and not (pocketed - {8}):
                     res.winner = me
                     res.game_over = True
-                    res.message = "8-ball, game"
+                    res.message = "black, game"
                     res.effects += self.celebrate(ctx, intensity=2.0, palette="gold")
                     return res
-                reason = "wrong pocket" if not called_ok else "8 with another ball"
+                reason = "wrong pocket" if not called_ok else "black with another ball"
                 res.winner = 1 - me
                 res.game_over = True
                 res.message = f"loss: {reason}"
@@ -130,8 +153,9 @@ class EightBall(Game):
                 return res
             res.winner = 1 - me
             res.game_over = True
-            res.message = "8 pocketed early" if not foul else f"8 pocketed on a foul ({foul})"
-            res.effects += self.foul_effects("8-ball off the table")
+            res.message = ("black pocketed early" if not foul
+                           else f"black pocketed on a foul ({foul})")
+            res.effects += self.foul_effects("black off the table")
             return res
 
         if foul:
@@ -148,9 +172,9 @@ class EightBall(Game):
             mine = pocketed & SOLIDS
             theirs = pocketed & STRIPES
             if mine and not theirs:
-                self.assign(me, "solids")
+                self.assign(me, self.low_group)
             elif theirs and not mine:
-                self.assign(me, "stripes")
+                self.assign(me, self.high_group)
             # both groups down on one shot leaves the table open
             if not self.open_table:
                 res.effects.append(Effect("assign_group", {
@@ -168,14 +192,15 @@ class EightBall(Game):
 
         res.effects += self.celebrate(ctx, intensity=1.0 + 0.3 * len(pocketed))
         if own:
-            res.message = f"potted {sorted(own)}"
+            res.message = f"potted {self.ball_set.describe_balls(own)}"
             res.turn_passes = False
             if self.on_eight(me, ctx.after):
                 res.effects.append(Effect("banner", {"text": "ON THE 8", "tone": "good"}, layer="hud"))
                 res.effects.append(Effect("highlight_balls", {"balls": [8], "color": "#f472b6",
                                                              "style": "pulse-ring"}, layer="guide"))
         else:
-            res.message = "safe" if not pocketed else f"potted opponent's {sorted(pocketed)}"
+            res.message = ("safe" if not pocketed
+                           else f"potted opponent's {self.ball_set.describe_balls(pocketed)}")
             res.turn_passes = True
         self.called = None
         return res

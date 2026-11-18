@@ -50,6 +50,17 @@ done.
 - `r` resets to a default rectangle
 - `c` leaves calibration mode
 
+### Calibrating from the tablet
+
+Those hotkeys need a keyboard, and the PC is usually across the room from the
+table — which is the one place you cannot judge the alignment from. So the
+same controls are on the scoreboard page: **Setup → Calibrate projector**.
+
+Pick a corner, nudge it with the arrow pad (1 px, or 10 px with the toggle),
+and watch the projection while you do it. The tablet never draws anything
+itself; it relays the nudges to the overlay over the same socket, so what you
+see on the cloth is the real mapping, not a preview of one.
+
 It saves to the browser's local storage immediately and also pushes the corners
 to the server, so a second screen picks up the same mapping.
 
