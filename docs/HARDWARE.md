@@ -57,6 +57,14 @@ What you have, and it works:
 
 `KinectV2Source` picks whichever it finds.
 
+**Does it find the Kinect on its own?** Yes, once a driver is installed.
+`--source auto` (the default for `run` and `calibrate`) tries a Kinect v2
+first and falls back to the first webcam that opens, and **Setup → Camera →
+Connect camera** does the same from the UI. What it cannot do is install the
+driver for you: with no `pykinect2` or `pylibfreenect2` present, the sensor is
+invisible to Python no matter how it is plugged in. The Camera tab says so
+explicitly rather than just reporting "no camera".
+
 **Kinect v1 (Xbox 360): don't.** At 640×480 a ball is about 14 px across.
 
 ### Reds and yellows are easier to see than a numbered set
@@ -121,3 +129,10 @@ The one thing that will cost you a weekend if you get it wrong.
   rails are much better.
 - Whatever you choose, keep it constant. Auto-exposure chasing a changing room
   is worse than slightly bad light.
+
+The detector compensates for uneven light by dividing out the slow brightness
+gradient before thresholding (`normalise_light`, on by default). On a test
+frame lit like a traditional pool table — ten times brighter in the middle
+than in the corners — that is the difference between finding seven of eight
+balls and finding all eight. It is a safety net, not a substitute for lighting
+the table properly.

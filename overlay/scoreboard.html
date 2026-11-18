@@ -27,42 +27,80 @@
   <div class="alert" id="alert" hidden></div>
 
   <section class="setup" id="setup" hidden>
-    <div class="games" id="games"></div>
-    <div class="roster">
-      <label for="players">Players</label>
-      <input id="players" value="Player 1, Player 2" autocomplete="off" spellcheck="false">
-      <span class="hint" id="roster-hint"></span>
-    </div>
-    <div class="setup-actions">
-      <button class="go" id="start">Start game</button>
-      <button id="pass">Pass turn</button>
-      <button id="boom">Test effect</button>
-      <button id="calib">Calibrate projector</button>
-    </div>
-  </section>
 
-  <section class="calib-panel" id="calib-panel" hidden>
-    <div class="calib-head">
-      <strong>Projector calibration</strong>
-      <span>Pick a corner, then nudge it onto the matching corner of the cushion.</span>
-    </div>
-    <div class="calib-body">
-      <div class="corner-pick" id="corner-pick">
-        <button data-c="0">TL</button><button data-c="1">TR</button>
-        <button data-c="3">BL</button><button data-c="2">BR</button>
-      </div>
-      <div class="dpad" id="dpad">
-        <button data-dx="0"  data-dy="-1" class="up">▲</button>
-        <button data-dx="-1" data-dy="0"  class="left">◀</button>
-        <button data-dx="1"  data-dy="0"  class="right">▶</button>
-        <button data-dx="0"  data-dy="1"  class="down">▼</button>
-        <label class="step"><input type="checkbox" id="big-step"> 10 px</label>
-      </div>
-      <div class="calib-actions">
-        <button id="calib-reset">Reset corners</button>
-        <button class="go" id="calib-done">Done</button>
+    <nav class="tabs" id="tabs">
+      <button data-tab="game" aria-pressed="true">Game</button>
+      <button data-tab="players">Players</button>
+      <button data-tab="projector">Projector</button>
+      <button data-tab="camera">Camera</button>
+    </nav>
+
+    <div class="tab" data-panel="game">
+      <div class="games" id="games"></div>
+      <div class="setup-actions">
+        <button class="go" id="start">Start game</button>
+        <button id="pass">Pass turn</button>
+        <button id="boom">Test effect</button>
       </div>
     </div>
+
+    <div class="tab" data-panel="players" hidden>
+      <div class="name-list" id="name-list"></div>
+      <div class="setup-actions">
+        <button id="add-player">Add player</button>
+        <button id="remove-player">Remove last</button>
+        <button class="go" id="start2">Start game</button>
+      </div>
+      <p class="note" id="roster-hint"></p>
+    </div>
+
+    <div class="tab" data-panel="projector" hidden>
+      <p class="note">
+        Lines up the <strong>projected image</strong> with the table: drag each
+        corner of the projected outline onto the matching corner of the
+        cushion. This has nothing to do with the camera.
+      </p>
+      <div class="calib-body">
+        <div class="corner-pick" id="corner-pick">
+          <button data-c="0">TL</button><button data-c="1">TR</button>
+          <button data-c="3">BL</button><button data-c="2">BR</button>
+        </div>
+        <div class="dpad" id="dpad">
+          <button data-dx="0"  data-dy="-1" class="up">&#9650;</button>
+          <button data-dx="-1" data-dy="0"  class="left">&#9664;</button>
+          <button data-dx="1"  data-dy="0"  class="right">&#9654;</button>
+          <button data-dx="0"  data-dy="1"  class="down">&#9660;</button>
+          <label class="step"><input type="checkbox" id="big-step"> 10 px</label>
+        </div>
+        <div class="calib-actions">
+          <button id="calib-reset">Reset</button>
+          <button class="go" id="calib-done">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" data-panel="camera" hidden>
+      <p class="note">
+        Teaches the system where the <strong>table</strong> is in the camera
+        picture. Do this once after the camera is mounted, and again if it
+        ever moves.
+      </p>
+      <div class="cam-status" id="cam-status">checking&hellip;</div>
+      <div class="setup-actions">
+        <button class="go" id="cam-connect">Connect camera</button>
+        <button id="cam-snap" disabled>Take picture</button>
+        <button id="cam-undo" disabled>Undo corner</button>
+        <button id="cam-save" disabled>Save calibration</button>
+      </div>
+      <div class="cam-shot" id="cam-shot" hidden>
+        <div class="cam-prompt" id="cam-prompt"></div>
+        <div class="cam-stage">
+          <img id="cam-img" alt="camera view">
+          <canvas id="cam-overlay"></canvas>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <main class="grid">

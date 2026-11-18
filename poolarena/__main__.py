@@ -16,6 +16,7 @@ import webbrowser
 from pathlib import Path
 
 from .ballset import get_ball_set
+from .camera import CameraService, probe
 from .engine import Engine
 from .geometry import Calibration, Table
 from .rules import available
@@ -53,13 +54,24 @@ def load_table(args) -> Table:
 
 
 def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
-                 ball_set=None):
+                 ball_set=None, camera: CameraService | None = None):
     bs = ball_set or get_ball_set(None)
+    cam = camera or CameraService(table=table,
+                                  calibration_path=CONFIG / "calibration.json")
     routes = {
         "/api/games": lambda: {"games": available(bs), "ball_set": bs.to_json()},
         "/api/table": lambda: table.to_json(),
+        "/api/camera/status": cam.status,
+        "/api/camera/snapshot": cam.snapshot_json,
     }
-    httpd = serve(engine_hub, OVERLAY, port=port, http_routes=routes)
+    posts = {
+        "/api/camera/open": lambda m: cam.open(m.get("spec", "auto")),
+        "/api/camera/close": lambda m: (cam.close(), {"ok": True})[1],
+        "/api/camera/calibrate": lambda m: cam.calibrate(m.get("points"),
+                                                         m.get("image_size")),
+    }
+    httpd = serve(engine_hub, OVERLAY, port=port, http_routes=routes,
+                  post_routes=posts)
     url = f"http://localhost:{port}/"
     print(f"  projector   {url}")
     print(f"  scoreboard  {url}scoreboard.html")
@@ -314,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
     d.set_defaults(func=cmd_demo)
 
     r = sub.add_parser("run", parents=[common], help="live camera")
-    r.add_argument("--source", default="kinect", help="kinect|cam:0|video:path")
+    r.add_argument("--source", default="auto",
+                   help="auto|kinect|cam:0|video:path  (auto finds a Kinect, else a webcam)")
     r.add_argument("--calibration", default=str(CONFIG / "calibration.json"))
     r.add_argument("--weights", help="YOLO weights, switches the detector")
     r.add_argument("--learn-cloth", action="store_true",
@@ -322,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     r.set_defaults(func=cmd_run)
 
     c = sub.add_parser("calibrate", parents=[common], help="click the four cushion corners")
-    c.add_argument("--source", default="kinect")
+    c.add_argument("--source", default="auto")
     c.add_argument("--calibration", default=str(CONFIG / "calibration.json"))
     c.set_defaults(func=cmd_calibrate)
 

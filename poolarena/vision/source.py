@@ -228,7 +228,27 @@ class KinectV2Source(FrameSource):
 
 
 def open_source(spec: str, **kw) -> FrameSource:
-    """Open a source from a string: "kinect", "cam:0", "video:path", "image:path"."""
+    """Open a source from a string: "auto", "kinect", "cam:0", "video:path",
+    "image:path".
+
+    "auto" prefers a Kinect v2 when a working backend is installed and falls
+    back to the first webcam that opens, so a user who just plugs the sensor
+    in does not have to know what to type.
+    """
+    if spec == "auto":
+        try:
+            return KinectV2Source(**kw)
+        except Exception:
+            pass
+        for index in range(3):
+            try:
+                return WebcamSource(index, **kw)
+            except Exception:
+                continue
+        raise RuntimeError(
+            "no camera found. Check the Kinect is on a USB 3 port with its "
+            "power supply and that its driver is installed; see docs/HARDWARE.md"
+        )
     if spec in ("kinect", "kinect2"):
         return KinectV2Source(**kw)
     if spec.startswith("cam"):

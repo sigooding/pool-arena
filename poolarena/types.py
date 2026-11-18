@@ -135,6 +135,7 @@ class Player:
     group: str | None = None       # "solids"/"stripes" in 8-ball, or None
     balls_left: list[int] = field(default_factory=list)
     lives: int = 0                 # killer, and other elimination games
+    visits: int = 1                # shots remaining this turn (UK two-shot rules)
     out: bool = False
 
     def to_json(self) -> dict[str, Any]:
@@ -144,6 +145,7 @@ class Player:
             "group": self.group,
             "balls_left": self.balls_left,
             "lives": self.lives,
+            "visits": self.visits,
             "out": self.out,
         }
 

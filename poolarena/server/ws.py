@@ -145,8 +145,10 @@ class Hub:
 
 
 def make_handler(hub: Hub, static_root: Path,
-                 http_routes: dict[str, Callable[[], dict[str, Any]]] | None = None):
+                 http_routes: dict[str, Callable[[], dict[str, Any]]] | None = None,
+                 post_routes: dict[str, Callable[[dict], dict[str, Any]]] | None = None):
     routes = http_routes or {}
+    posts = post_routes or {}
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -221,6 +223,15 @@ def make_handler(hub: Hub, static_root: Path,
             except ValueError:
                 self._json({"ok": False, "error": "bad json"}, 400)
                 return
+            path = self.path.split("?")[0]
+            if path in posts:
+                # Camera work goes over HTTP, not the socket: a snapshot is
+                # hundreds of kilobytes and only one client asked for it.
+                try:
+                    self._json(posts[path](msg))
+                except Exception as exc:
+                    self._json({"ok": False, "error": str(exc)}, 500)
+                return
             if hub.on_message:
                 try:
                     hub.on_message(msg, None)   # type: ignore[arg-type]
@@ -262,9 +273,10 @@ def make_handler(hub: Hub, static_root: Path,
 
 
 def serve(hub: Hub, static_root: Path, host: str = "0.0.0.0", port: int = 8777,
-          http_routes: dict[str, Callable[[], dict[str, Any]]] | None = None):
+          http_routes: dict[str, Callable[[], dict[str, Any]]] | None = None,
+          post_routes: dict[str, Callable[[dict], dict[str, Any]]] | None = None):
     """Start the server on a daemon thread and return it."""
-    handler = make_handler(hub, static_root, http_routes)
+    handler = make_handler(hub, static_root, http_routes, post_routes)
     httpd = ThreadingHTTPServer((host, port), handler)
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, name="poolarena-http", daemon=True)

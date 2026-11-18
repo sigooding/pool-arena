@@ -28,15 +28,19 @@ colour-coded shot feed:
 
 ## What works today
 
-- **Scoring** for 8-ball, 9-ball, cut-throat and killer, with fouls: wrong ball
-  first, scratch, no rail after contact, 8 early, illegal break.
+- **Scoring** for 8-ball, 9-ball, cut-throat, killer and both UK codes —
+  English 8-Ball (two shots after a foul) and Blackball (free shot) — with
+  fouls: wrong ball first, scratch, no rail after contact, black early,
+  potting the opponent's ball, illegal break.
 - **Three projection-native game modes** — Hotspots, Pocket Roulette and a
   graded Position Drill — that only make sense on a table with a projector.
 - **26 projected effects**: pocket flares, explosions, ball trails, ghost-ball
   aiming lines with the tangent line and cut angle, glowing zones, fireworks,
   lightning, on-cloth banners.
-- **Four-corner keystone calibration** in the browser, so the projector does
-  not have to be square to the table.
+- **Both calibrations in the UI, no terminal.** Setup → Camera finds the
+  camera, takes a picture and takes four taps to learn where the table is;
+  Setup → Projector nudges the projected outline onto the cushions. Works on
+  a PC touchscreen, a tablet or a phone.
 - **A tablet scoreboard** with a live top-down table view, drawn from the same
   state stream, that works from a phone up to a wall display — including a
   calibration pad that drives the projector, so you align it standing at the
@@ -46,7 +50,7 @@ colour-coded shot feed:
   on an English set rather than scored by guesswork.
 - **A simulator** good enough to develop and demo the whole system without a
   camera, a projector or a table.
-- **55 tests** covering geometry, shot detection, every rule set and the full
+- **73 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet
@@ -56,7 +60,10 @@ colour-coded shot feed:
   Expect to spend an evening on `config/detector.json`.
 - **No cue-ball-in-hand placement.** After a scratch the engine says "ball in
   hand"; nothing enforces where the cue ball is put back.
-- **No undo.** A mis-scored shot cannot be corrected from the tablet yet.
+- **No undo.** A mis-scored shot cannot be corrected from the UI yet.
+- **UK rules vary by league.** The two published codes are implemented and
+  their differences are options, but your pub may play something else; see
+  [docs/GAMES.md](docs/GAMES.md).
 - Live cue-stick tracking (the "draw the line I'm actually on" feature) is
   designed for but not built.
 - No audio.

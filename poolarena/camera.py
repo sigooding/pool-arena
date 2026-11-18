@@ -1,0 +1,198 @@
+"""Camera discovery, snapshots and calibration, driven from the browser.
+
+The command-line calibrator opens an OpenCV window and wants four clicks. That
+is fine if you are already in a terminal, and useless if you are not. This
+module puts the same job behind the web UI: probe for a camera, hand the
+browser a still, take four clicked corners back, solve the homography and save
+it. No terminal, no Python.
+
+Everything here is lazy. The camera is only opened when someone asks for a
+frame, so running the simulator does not fight the live system for the device.
+"""
+from __future__ import annotations
+
+import base64
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from .geometry import Calibration, Table
+
+
+def probe() -> dict[str, Any]:
+    """What camera, if any, is plugged in — without claiming it.
+
+    Ordered by preference: a Kinect v2 is better than a random webcam, and a
+    webcam is better than nothing.
+    """
+    found: list[dict[str, Any]] = []
+
+    kinect_backend = None
+    try:
+        from .vision.source import KinectV2Source
+        kinect_backend = KinectV2Source._pick_backend()
+    except Exception:
+        kinect_backend = "none"
+    if kinect_backend and kinect_backend != "none":
+        found.append({
+            "spec": "kinect",
+            "label": f"Kinect v2 ({kinect_backend})",
+            "backend": kinect_backend,
+        })
+
+    try:
+        import cv2
+        for index in range(3):
+            cap = cv2.VideoCapture(index)
+            ok = cap.isOpened()
+            if ok:
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                found.append({"spec": f"cam:{index}",
+                              "label": f"Camera {index} ({w}x{h})" if w else f"Camera {index}",
+                              "backend": "opencv"})
+            cap.release()
+            if not ok:
+                break
+    except ImportError:
+        return {"cameras": found, "opencv": False,
+                "hint": "OpenCV is not installed, so cameras cannot be opened. "
+                        "Install it with: pip install opencv-python"}
+    except Exception as exc:
+        return {"cameras": found, "opencv": True, "hint": str(exc)}
+
+    hint = ""
+    if not found:
+        hint = ("No camera detected. For a Kinect v2: check it is on a USB 3 "
+                "port with its power supply, and that the driver is installed "
+                "(Kinect for Windows SDK 2.0 plus pykinect2, or libfreenect2 "
+                "plus pylibfreenect2 on Linux). See docs/HARDWARE.md.")
+    return {"cameras": found, "opencv": True, "hint": hint}
+
+
+@dataclass
+class CameraService:
+    """Holds at most one open camera, and the calibration for it."""
+
+    table: Table
+    calibration_path: Path
+    source: Any = None
+    spec: str = ""
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+    last_error: str = ""
+
+    # --- lifecycle ---------------------------------------------------------
+    def open(self, spec: str = "auto") -> dict[str, Any]:
+        from .vision.source import open_source
+        with self._lock:
+            self.close_locked()
+            if spec == "auto":
+                cams = probe().get("cameras", [])
+                if not cams:
+                    self.last_error = "no camera detected"
+                    return {"ok": False, "error": self.last_error}
+                spec = cams[0]["spec"]
+            try:
+                self.source = open_source(spec)
+                self.spec = spec
+                self.last_error = ""
+                return {"ok": True, "spec": spec, "name": self.source.name}
+            except Exception as exc:
+                self.last_error = str(exc)
+                self.source = None
+                return {"ok": False, "error": self.last_error}
+
+    def close_locked(self) -> None:
+        if self.source is not None:
+            try:
+                self.source.close()
+            except Exception:
+                pass
+            self.source = None
+
+    def close(self) -> None:
+        with self._lock:
+            self.close_locked()
+
+    # --- frames ------------------------------------------------------------
+    def snapshot(self, warm: int = 12) -> tuple[bytes | None, dict[str, Any]]:
+        """A JPEG of the current view, plus its real pixel size.
+
+        `warm` frames are pulled first: webcams and the Kinect both need a
+        moment for auto-exposure to settle, and calibrating against a dark
+        first frame is how you end up clicking the wrong corners.
+        """
+        import cv2
+        with self._lock:
+            if self.source is None:
+                return None, {"error": "camera not open"}
+            frame = None
+            for _ in range(max(1, warm)):
+                got = self.source.read()
+                if got and got[0] is not None:
+                    frame = got[0]
+            if frame is None:
+                return None, {"error": "no frame from camera"}
+            ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+            if not ok:
+                return None, {"error": "could not encode frame"}
+            h, w = frame.shape[:2]
+            return buf.tobytes(), {"width": w, "height": h}
+
+    def snapshot_json(self) -> dict[str, Any]:
+        blob, meta = self.snapshot()
+        if blob is None:
+            return {"ok": False, **meta}
+        return {
+            "ok": True,
+            "width": meta["width"],
+            "height": meta["height"],
+            "image": "data:image/jpeg;base64," + base64.b64encode(blob).decode(),
+        }
+
+    # --- calibration -------------------------------------------------------
+    def calibrate(self, points, image_size=None) -> dict[str, Any]:
+        """Four clicked corners (TL, TR, BR, BL) in image pixels -> homography.
+
+        Points may be given in the coordinates of a scaled-down preview; pass
+        the preview size as `image_size` and they are scaled back up.
+        """
+        if not points or len(points) != 4:
+            return {"ok": False, "error": "need exactly four corners"}
+        pts = [(float(p[0]), float(p[1])) for p in points]
+
+        if image_size:
+            blob, meta = self.snapshot(warm=1)
+            if blob is not None and meta.get("width"):
+                sx = meta["width"] / float(image_size[0])
+                sy = meta["height"] / float(image_size[1])
+                pts = [(x * sx, y * sy) for x, y in pts]
+
+        calib = Calibration.from_corners(pts, self.table)
+        self.calibration_path.parent.mkdir(parents=True, exist_ok=True)
+        calib.save(self.calibration_path)
+        return {
+            "ok": True,
+            "error_mm": round(calib.error_mm, 2),
+            "path": str(self.calibration_path),
+            "quality": ("good" if calib.error_mm < 5
+                        else "usable" if calib.error_mm < 15 else "poor"),
+        }
+
+    def status(self) -> dict[str, Any]:
+        saved = self.calibration_path.exists()
+        err = None
+        if saved:
+            try:
+                err = round(Calibration.load(self.calibration_path).error_mm, 2)
+            except Exception:
+                saved = False
+        return {
+            "open": self.source is not None,
+            "spec": self.spec,
+            "calibrated": saved,
+            "error_mm": err,
+            "last_error": self.last_error,
+            **probe(),
+        }

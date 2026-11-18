@@ -54,10 +54,11 @@ class ColorBallDetector(BallDetector):
 
     def __init__(self, ball_px: float = 36.0, cloth_tolerance: int = 34,
                  min_fill: float = 0.45, white_v: int = 165, white_s: int = 70,
-                 ball_set: str = "american") -> None:
+                 ball_set: str = "american", normalise_light: bool = True) -> None:
         import cv2
         self.cv2 = cv2
         self.ball_set = ball_set
+        self.normalise_light = normalise_light
         self.ball_px = ball_px
         self.cloth_tolerance = cloth_tolerance
         self.min_fill = min_fill
@@ -75,8 +76,25 @@ class ColorBallDetector(BallDetector):
         h, s, v = (hsv[:, :, i] for i in range(3))
         self.cloth_hsv = np.array([np.median(h), np.median(s), np.median(v)], float)
 
+    def flatten(self, warped: np.ndarray) -> np.ndarray:
+        """Divide out slow brightness variation across the cloth.
+
+        A traditional pool light puts a hot spot in the middle and leaves the
+        corners in shadow — on a real table the brightest cloth can be ten
+        times the darkest. A single global colour threshold then works in the
+        middle and loses balls in the corners. Dividing by a heavily blurred
+        copy of the frame removes the gradient and keeps the local colour,
+        which is the part that identifies a ball.
+        """
+        cv2 = self.cv2
+        blur = cv2.GaussianBlur(warped, (0, 0), 61)
+        out = warped.astype(np.float32) / np.maximum(blur.astype(np.float32), 1.0)
+        return np.clip(out * 128.0, 0, 255).astype(np.uint8)
+
     def cloth_mask(self, warped: np.ndarray) -> np.ndarray:
         cv2 = self.cv2
+        if self.normalise_light:
+            warped = self.flatten(warped)
         hsv = cv2.cvtColor(cv2.GaussianBlur(warped, (5, 5), 0), cv2.COLOR_BGR2HSV)
         if self.cloth_hsv is None:
             # Fall back to the dominant hue in the frame, which on a pool table
@@ -264,4 +282,5 @@ def build_detector(cfg: dict[str, Any]) -> BallDetector:
         cloth_tolerance=cfg.get("cloth_tolerance", 34),
         min_fill=cfg.get("min_fill", 0.45),
         ball_set=cfg.get("ball_set", "american"),
+        normalise_light=cfg.get("normalise_light", True),
     )

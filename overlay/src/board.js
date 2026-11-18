@@ -99,26 +99,55 @@ function renderGames() {
   }
 }
 
+// One field per player, rather than a comma-separated string nobody can see
+// the shape of. The list resizes itself to whatever the chosen game accepts.
+let roster = ['Player 1', 'Player 2'];
+
+function renderRoster() {
+  const g = games.find((x) => x.name === picked);
+  const list = el('name-list');
+  list.textContent = '';
+  roster.forEach((name, i) => {
+    const row = document.createElement('div');
+    row.className = 'name-row';
+    const seat = document.createElement('span');
+    seat.className = 'seat';
+    seat.textContent = `P${i + 1}`;
+    const input = document.createElement('input');
+    input.value = name;
+    input.placeholder = `Player ${i + 1}`;
+    input.autocomplete = 'off';
+    input.oninput = () => { roster[i] = input.value; };
+    input.onkeydown = (e) => { if (e.key === 'Enter') startGame(); };
+    row.append(seat, input);
+    list.appendChild(row);
+  });
+  if (g) {
+    const span = g.min_players === g.max_players
+      ? `${g.min_players} players` : `${g.min_players}-${g.max_players} players`;
+    el('roster-hint').textContent = `${g.title}: ${span}`;
+    el('add-player').disabled = roster.length >= g.max_players;
+    el('remove-player').disabled = roster.length <= g.min_players;
+  }
+}
+
+function fitRoster() {
+  const g = games.find((x) => x.name === picked);
+  if (!g) return;
+  while (roster.length < g.min_players) roster.push(`Player ${roster.length + 1}`);
+  if (roster.length > g.max_players) roster = roster.slice(0, g.max_players);
+  renderRoster();
+}
+
 function pick(name, fixRoster = true) {
   picked = name;
-  const g = games.find((x) => x.name === name);
   [...el('games').children].forEach((c, i) =>
     c.setAttribute('aria-pressed', String(games[i].name === name)));
-  if (!g) return;
-  const span = g.min_players === g.max_players
-    ? `${g.min_players} players` : `${g.min_players}–${g.max_players} players`;
-  el('roster-hint').textContent = span;
-  if (!fixRoster) return;
-  // Keep the roster legal for the chosen game, rather than letting Start fail.
-  const have = rosterNames();
-  const n = Math.max(g.min_players, Math.min(g.max_players, have.length || g.min_players));
-  const names = [...have];
-  while (names.length < n) names.push(`Player ${names.length + 1}`);
-  el('players').value = names.slice(0, n).join(', ');
+  if (fixRoster) fitRoster(); else renderRoster();
 }
 
 const rosterNames = () =>
-  el('players').value.split(',').map((s) => s.trim()).filter(Boolean);
+  roster.map((s) => s.trim()).filter(Boolean);
 
 // --- scoreboard -----------------------------------------------------------
 function render() {
@@ -235,13 +264,37 @@ function renderFeed() {
 
 // --- controls -------------------------------------------------------------
 el('toggle-setup').onclick = () => {
-  const s = el('setup');
-  s.hidden = !s.hidden;
-  el('toggle-setup').setAttribute('aria-expanded', String(!s.hidden));
+  const panel = el('setup');
+  panel.hidden = !panel.hidden;
+  el('toggle-setup').setAttribute('aria-expanded', String(!panel.hidden));
+  if (panel.hidden) send({ type: 'calibrate', on: false });
 };
-el('start').onclick = () => {
+function startGame() {
   el('alert').hidden = true;
   send({ type: 'start_game', game: picked, players: rosterNames() });
+}
+el('start').onclick = startGame;
+el('start2').onclick = startGame;
+el('add-player').onclick = () => {
+  roster.push(`Player ${roster.length + 1}`);
+  renderRoster();
+};
+el('remove-player').onclick = () => { roster.pop(); renderRoster(); };
+
+// --- setup tabs -----------------------------------------------------------
+el('tabs').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const want = b.dataset.tab;
+  [...el('tabs').children].forEach((t) =>
+    t.setAttribute('aria-pressed', String(t.dataset.tab === want)));
+  document.querySelectorAll('.tab').forEach((panel) => {
+    panel.hidden = panel.dataset.panel !== want;
+  });
+  // Entering or leaving the projector tab drives the overlay's grid, so the
+  // outline is on the cloth exactly while you are looking at these controls.
+  send({ type: 'calibrate', on: want === 'projector' });
+  if (want === 'camera') refreshCamera();
 };
 el('pass').onclick = () => send({ type: 'next_turn' });
 el('boom').onclick = () => send({
@@ -273,20 +326,160 @@ el('dpad').onclick = (e) => {
          dx: Number(b.dataset.dx) * step, dy: Number(b.dataset.dy) * step });
 };
 
-el('calib').onclick = () => {
-  const panel = el('calib-panel');
-  const opening = panel.hidden;
-  panel.hidden = !opening;
-  send({ type: 'calibrate', on: opening });
-  if (opening) setCorner(0);
-};
 el('calib-reset').onclick = () => send({ type: 'projector_nudge', reset: true });
 el('calib-done').onclick = () => {
-  el('calib-panel').hidden = true;
   send({ type: 'calibrate', on: false });
+  el('tabs').querySelector('[data-tab="game"]').click();
+};
+
+// --- camera calibration ---------------------------------------------------
+// Four clicks on a still from the camera. The corners are sent back as
+// fractions of the picture, so it does not matter how the browser scaled it.
+const CORNERS = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+let camPoints = [];
+let camSize = null;
+
+async function api(path, body) {
+  const res = await fetch(path, body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) }
+    : undefined);
+  return res.json();
+}
+
+async function refreshCamera() {
+  const box = el('cam-status');
+  box.className = 'cam-status';
+  box.textContent = 'checking…';
+  let st;
+  try { st = await api('/api/camera/status'); }
+  catch (e) { box.className = 'cam-status bad'; box.textContent = String(e); return; }
+
+  const lines = [];
+  if (st.open) {
+    // An open camera beats the probe: the probe only lists devices it can
+    // find by scanning, and the one in use may not be one of them.
+    box.className = 'cam-status ready';
+    lines.push(`Connected: ${st.spec}`);
+  } else if (!st.opencv) {
+    box.className = 'cam-status bad';
+    lines.push(st.hint || 'OpenCV is not installed.');
+  } else if (!st.cameras.length) {
+    box.className = 'cam-status bad';
+    lines.push(st.hint || 'No camera detected.');
+  } else {
+    box.className = 'cam-status ready';
+    lines.push('Found: ' + st.cameras.map((c) => c.label).join(', '));
+  }
+  if (st.calibrated) {
+    lines.push(`Calibrated, ${st.error_mm} mm average error ` +
+               `(under 5 mm is good, over 15 mm needs redoing).`);
+  } else {
+    lines.push('Not calibrated yet.');
+  }
+  box.textContent = lines.join('  ');
+  el('cam-snap').disabled = !st.open;
+}
+
+el('cam-connect').onclick = async () => {
+  el('cam-status').textContent = 'connecting…';
+  const r = await api('/api/camera/open', { spec: 'auto' });
+  if (!r.ok) {
+    el('cam-status').className = 'cam-status bad';
+    el('cam-status').textContent = r.error || 'could not open the camera';
+    return;
+  }
+  await refreshCamera();
+  el('cam-snap').disabled = false;
+  el('cam-snap').click();
+};
+
+el('cam-snap').onclick = async () => {
+  el('cam-prompt').textContent = 'taking a picture…';
+  el('cam-shot').hidden = false;
+  const r = await api('/api/camera/snapshot');
+  if (!r.ok) {
+    el('cam-prompt').textContent = r.error || 'no picture';
+    return;
+  }
+  camSize = [r.width, r.height];
+  const img = el('cam-img');
+  img.onload = () => { sizeCamOverlay(); drawCamPoints(); };
+  img.src = r.image;
+  camPoints = [];
+  updateCamPrompt();
+};
+
+function sizeCamOverlay() {
+  const img = el('cam-img');
+  const c = el('cam-overlay');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = Math.round(img.clientWidth * dpr);
+  c.height = Math.round(img.clientHeight * dpr);
+  c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', () => { if (camSize) { sizeCamOverlay(); drawCamPoints(); } });
+
+function updateCamPrompt() {
+  el('cam-prompt').textContent = camPoints.length < 4
+    ? `Tap the ${CORNERS[camPoints.length]} corner of the cushion ` +
+      `(where the cloth meets the rail)`
+    : 'Four corners set — save the calibration';
+  el('cam-undo').disabled = !camPoints.length;
+  el('cam-save').disabled = camPoints.length !== 4;
+}
+
+el('cam-overlay').onpointerdown = (e) => {
+  if (camPoints.length >= 4) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  camPoints.push([(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]);
+  drawCamPoints();
+  updateCamPrompt();
+};
+
+el('cam-undo').onclick = () => { camPoints.pop(); drawCamPoints(); updateCamPrompt(); };
+
+function drawCamPoints() {
+  const c = el('cam-overlay');
+  const ctx = c.getContext('2d');
+  const w = el('cam-img').clientWidth, h = el('cam-img').clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  const pts = camPoints.map(([x, y]) => [x * w, y * h]);
+  if (pts.length > 1) {
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    if (pts.length === 4) ctx.closePath();
+    ctx.strokeStyle = '#27A37C';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  pts.forEach(([x, y], i) => {
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#27A37C'; ctx.fill();
+    ctx.fillStyle = '#04120D';
+    ctx.font = 'bold 11px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(i + 1), x, y);
+  });
+}
+
+el('cam-save').onclick = async () => {
+  // Fractions -> real pixels, using the picture's own size.
+  const points = camPoints.map(([x, y]) => [x * camSize[0], y * camSize[1]]);
+  const r = await api('/api/camera/calibrate', { points });
+  const box = el('cam-status');
+  if (!r.ok) {
+    box.className = 'cam-status bad';
+    box.textContent = r.error || 'could not save';
+    return;
+  }
+  box.className = 'cam-status ' + (r.quality === 'poor' ? 'bad' : 'ready');
+  box.textContent = `Saved. Average error ${r.error_mm} mm (${r.quality}).` +
+    (r.quality === 'poor' ? ' Re-do it: click exactly where the cloth meets the rail.' : '');
 };
 
 // --- go -------------------------------------------------------------------
 mini = new MiniTable(el('mini'));
 renderFeed();
+renderRoster();
 connect();

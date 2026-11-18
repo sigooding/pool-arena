@@ -6,13 +6,48 @@ python -m poolarena games
 
 | name | title | players | what it is |
 |---|---|---|---|
-| `8ball` | 8-Ball | 2 | Open table, group assignment on the first legal pot, called pocket on the 8 |
+| `8ball` | 8-Ball | 2 | American rules: open table, group on the first legal pot, called pocket on the 8 |
+| `uk8` | English 8-Ball | 2 | UK World Rules: **two shots** after a foul, no called pocket |
+| `blackball` | Blackball | 2 | International code: one shot with a **free shot** after a foul |
 | `9ball` | 9-Ball | 2–4 | Lowest ball first, pot the 9 to win, combos count |
 | `cutthroat` | Cut-Throat | 3 | Own five balls, pot everyone else's, last one with balls wins |
 | `killer` | Killer | 2–8 | Pot on your turn or lose a life |
 | `hotspots` | Hotspots | 1–6 | **Projector-native.** Route object balls through glowing zones |
 | `roulette` | Pocket Roulette | 1–6 | **Projector-native.** The table picks which pocket you must use |
 | `position` | Position Drill | 1–4 | **Projector-native.** Pot, then stop the cue ball in the ring |
+
+## UK rules
+
+`uk8` and `blackball` are not the American game with different coloured balls.
+What actually differs in play:
+
+- **no called pocket on the black** — American 8-ball nominates one;
+- **potting an opponent's ball is a foul**, not just a wasted shot;
+- **the foul penalty is not simply ball in hand.** English 8-ball gives the
+  incoming player *two visits*: miss with the first and you are still at the
+  table. Blackball gives one visit with a *free shot*, on which any ball may
+  be struck first — which is why a snooker is worth much less in Blackball.
+
+**A warning before anyone argues over a frame.** UK pub and league rules
+genuinely vary, by league, by county and by pub. What is implemented is the
+two common published codes, and the points they disagree on are options, not
+assumptions baked into the code:
+
+| option | `uk8` | `blackball` | meaning |
+|---|---|---|---|
+| `foul_visits` | 2 | 1 | shots the incoming player gets after a foul |
+| `free_shot` | false | true | may the first ball struck be anything? |
+| `break_balls_to_rail` | 2 | 2 | balls that must reach a cushion on a dry break |
+
+Set them like any other option:
+
+```json
+{"type": "start_game", "game": "uk8",
+ "players": ["Sam", "Alex"], "options": {"foul_visits": 1}}
+```
+
+If your league plays something these cannot express, the rule set is one file
+— see "Writing one" below.
 
 ## Ball sets
 
