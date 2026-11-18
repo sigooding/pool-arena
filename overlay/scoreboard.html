@@ -93,6 +93,19 @@
         ever moves.
       </p>
       <div class="cam-status" id="cam-status">checking&hellip;</div>
+      <div class="warn-box ok-box">
+        <strong>The accurate way: four printed markers.</strong>
+        Clicking corners by hand is the largest source of position error in
+        the whole system — three pixels out costs about 5&nbsp;mm on the
+        cloth. Four printed markers are found to under a pixel, every time,
+        and if you leave them taped down the camera can re-calibrate itself
+        after a knock.
+      </div>
+      <div class="setup-actions">
+        <button id="cam-sheet">Get the marker sheet</button>
+        <button class="go" id="cam-markers">Calibrate from markers</button>
+      </div>
+
       <div class="setup-actions">
         <button class="go" id="cam-connect">Connect camera</button>
         <button id="cam-snap" disabled>Take picture</button>

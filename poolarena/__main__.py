@@ -109,6 +109,8 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             detector_cfg, m.get("detector", "color"), m.get("weights", ""),
             float(m.get("conf", 0.4))),
         "/api/detector/test": test_detector,
+        "/api/camera/markers": lambda m: cam.calibrate_markers(),
+        "/api/camera/marker_sheet": lambda m: _marker_sheet(),
     }
     httpd = serve(engine_hub, OVERLAY, port=port, http_routes=routes,
                   post_routes=posts)
@@ -206,6 +208,29 @@ def cmd_demo(args) -> int:
 
 
 # --- live ----------------------------------------------------------------
+def _marker_sheet() -> dict:
+    """Write the printable marker sheet next to the config."""
+    from .vision.markers import sheet
+    out = sheet(CONFIG / "marker-sheet.png")
+    return {"ok": True, "path": str(out),
+            "note": "print it, cut out the four markers, and tape each one "
+                    "flat on the cloth just inside the corner it names, with "
+                    "its outer corner on the cushion corner"}
+
+
+def cmd_markers(args) -> int:
+    """Write the printable calibration markers."""
+    from .vision.markers import sheet
+    out = sheet(Path(args.out) if args.out else CONFIG / "marker-sheet.png")
+    print(f"  wrote {out}\n")
+    print("  Print it. Cut out the four markers. Tape each one FLAT on the")
+    print("  cloth just inside the corner it names, with its outer corner on")
+    print("  the cushion corner.\n")
+    print("  Then: python -m poolarena calibrate --markers")
+    print("  Leave them up and the camera re-calibrates itself if knocked.")
+    return 0
+
+
 def camera_specs(args) -> list[dict]:
     """Which cameras to use.
 
@@ -350,6 +375,22 @@ def cmd_calibrate(args) -> int:
 
     out = Path(args.calibration)
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.markers:
+        from .vision.markers import calibrate as marker_calibrate
+        calib, res = marker_calibrate(frame, table)
+        if calib is None:
+            names = ", ".join(res.to_json()["missing_names"])
+            print(f"found {len(res.found)} of 4 markers — missing {names}",
+                  file=sys.stderr)
+            print("check they are flat, unobstructed and inside the frame",
+                  file=sys.stderr)
+            return 2
+        calib.save(out)
+        print(f"saved {out} from four markers, rms {calib.error_mm:.2f} mm")
+        print("leave the markers up and the camera can re-calibrate itself")
+        return 0
+
     calib = calibrate_from_frame(frame, table, out)
     print(f"saved {out}  rms {calib.error_mm:.2f} mm")
     if calib.error_mm > 15:
@@ -471,7 +512,16 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("calibrate", parents=[common], help="click the four cushion corners")
     c.add_argument("--source", default="auto")
     c.add_argument("--calibration", default=str(CONFIG / "calibration.json"))
+    c.add_argument("--markers", action="store_true",
+                   help="calibrate from four printed markers instead of four "
+                        "clicks. More accurate, repeatable, and it lets the "
+                        "camera re-calibrate itself if knocked.")
     c.set_defaults(func=cmd_calibrate)
+
+    mk = sub.add_parser("markers", parents=[common],
+                        help="write the printable calibration markers")
+    mk.add_argument("--out", help="where to write the sheet")
+    mk.set_defaults(func=cmd_markers)
 
     rp = sub.add_parser("replay", parents=[common], help="replay a shot log")
     rp.add_argument("log")

@@ -578,6 +578,28 @@ async function refreshCamera() {
   el('cam-snap').disabled = !st.open;
 }
 
+el('cam-sheet').onclick = async () => {
+  const r = await api('/api/camera/marker_sheet', {});
+  el('cam-status').className = 'cam-status ready';
+  el('cam-status').textContent = r.ok
+    ? `Sheet written to ${r.path}. ${r.note}`
+    : (r.error || 'could not write the sheet');
+};
+
+el('cam-markers').onclick = async () => {
+  el('cam-status').className = 'cam-status';
+  el('cam-status').textContent = 'Looking for the four markers…';
+  const r = await api('/api/camera/markers', {});
+  if (!r.ok) {
+    el('cam-status').className = 'cam-status bad';
+    el('cam-status').textContent = r.error || 'no markers found';
+    return;
+  }
+  el('cam-status').className = 'cam-status ready';
+  el('cam-status').textContent =
+    `Calibrated from four markers, ${r.error_mm} mm average error. ${r.note}`;
+};
+
 el('cam-connect').onclick = async () => {
   el('cam-status').textContent = 'connecting…';
   const r = await api('/api/camera/open', { spec: 'auto' });

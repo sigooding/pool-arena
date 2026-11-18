@@ -507,3 +507,10 @@ button:disabled:hover { background: var(--surface-2); }
 .model-row .mname { flex: 1; font-weight: 650; }
 .model-row .msize { color: var(--dim); font-size: 12px; }
 .model-row button { padding: 8px 12px; min-height: 38px; font-size: 12.5px; }
+
+.warn-box.ok-box {
+  border-color: #1F5137;
+  background: #0E1B15;
+  color: #BFE8D7;
+}
+.warn-box.ok-box strong { color: #7CFFB2; }

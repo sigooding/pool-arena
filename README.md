@@ -85,7 +85,11 @@ colour-coded shot feed:
   affect it: depth says where the balls are, colour says which ball each one
   is. Found every ball on synthetic frames at noise several times worse than
   the real sensor.
-- **151 tests** covering geometry, shot detection, every rule set and the full
+- **Calibration from printed markers.** Four ArUco markers taped to the
+  cloth calibrate the camera to about 1 mm — better than a careful human
+  click and far better than a typical one — and if you leave them up, a
+  camera that gets knocked re-calibrates itself.
+- **165 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet
@@ -173,6 +177,9 @@ a ball moves 100 mm between frames, so a "were they touching?" test simply
 misses collisions).
 
 ## Docs
+
+- **[Setting it up](docs/SETUP.md)** — start here: requirements, camera
+  options, and the five things that actually affect accuracy
 
 - [Architecture](docs/ARCHITECTURE.md) — the layers and the decisions behind them
 - [Hardware](docs/HARDWARE.md) — cameras, the Kinect, PC specs, projector, lighting

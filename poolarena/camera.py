@@ -180,6 +180,38 @@ class CameraService:
                         else "usable" if calib.error_mm < 15 else "poor"),
         }
 
+    def calibrate_markers(self) -> dict[str, Any]:
+        """Calibrate from four printed markers instead of four clicks.
+
+        Clicking is the biggest error source in the system and has to be
+        redone whenever the camera moves. Markers are found to sub-pixel
+        accuracy by something that does not get bored, in the same place
+        every time.
+        """
+        from .vision.markers import calibrate as marker_calibrate
+        import cv2
+        import numpy as np
+
+        blob, meta = self.snapshot()
+        if blob is None:
+            return {"ok": False, **meta}
+        frame = cv2.imdecode(np.frombuffer(blob, np.uint8), cv2.IMREAD_COLOR)
+        calib, res = marker_calibrate(frame, self.table)
+        if calib is None:
+            names = ", ".join(res.to_json()["missing_names"])
+            return {"ok": False,
+                    "error": f"found {len(res.found)} of 4 markers — missing "
+                             f"{names}. Check they are flat, unobstructed and "
+                             f"inside the frame.",
+                    "markers": res.to_json()}
+        self.calibration_path.parent.mkdir(parents=True, exist_ok=True)
+        calib.save(self.calibration_path)
+        return {"ok": True, "error_mm": round(calib.error_mm, 2),
+                "quality": "good", "markers": res.to_json(),
+                "path": str(self.calibration_path),
+                "note": "leave the markers up and the camera can re-calibrate "
+                        "itself if it is ever knocked"}
+
     def status(self) -> dict[str, Any]:
         saved = self.calibration_path.exists()
         err = None
