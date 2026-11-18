@@ -590,20 +590,83 @@ window.addEventListener('resize', () => { if (camSize) { sizeCamOverlay(); drawC
 
 function updateCamPrompt() {
   el('cam-prompt').textContent = camPoints.length < 4
-    ? `Tap the ${CORNERS[camPoints.length]} corner of the cushion ` +
-      `(where the cloth meets the rail)`
+    ? `Tap the ${CORNERS[camPoints.length]} corner of the cushion `
+      + `(where the cloth meets the rail) — arrow keys nudge the last one, `
+      + `and a pixel here is worth a millimetre on the table`
     : 'Four corners set — save the calibration';
   el('cam-undo').disabled = !camPoints.length;
   el('cam-save').disabled = camPoints.length !== 4;
 }
 
+// A loupe. Measured on this project's own geometry, click precision is the
+// single biggest source of position error: clicking the cushion corners to
+// within a pixel puts balls within ~1.6 mm, being 5 px out costs ~7 mm, and
+// 8 px out costs ~11 mm with outliers past 40 mm — worse than parallax and
+// worse than anything the detector does. The picture is displayed far
+// smaller than the camera's real resolution, so a pixel on screen can be
+// three in the frame. Hence: magnify while placing, and allow a nudge after.
+let camHover = null;
+
+function drawLoupe(ctx, w, h) {
+  if (!camHover || camPoints.length >= 4) return;
+  const img = el('cam-img');
+  const R = 74, Z = 5;
+  // Keep the loupe away from the cursor's own quadrant so it never covers
+  // the corner being placed.
+  const lx = camHover[0] * w < w / 2 ? w - R - 14 : R + 14;
+  const ly = camHover[1] * h < h / 2 ? h - R - 14 : R + 14;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2);
+  ctx.closePath(); ctx.clip();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(lx - R, ly - R, R * 2, R * 2);
+  ctx.drawImage(img,
+    camHover[0] * img.naturalWidth - R / Z, camHover[1] * img.naturalHeight - R / Z,
+    (R * 2) / Z, (R * 2) / Z,
+    lx - R, ly - R, R * 2, R * 2);
+  ctx.strokeStyle = '#27A37C';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(lx - R, ly); ctx.lineTo(lx + R, ly);
+  ctx.moveTo(lx, ly - R); ctx.lineTo(lx, ly + R);
+  ctx.stroke();
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2);
+  ctx.strokeStyle = '#27A37C'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+el('cam-overlay').onpointermove = (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  camHover = [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+  drawCamPoints();
+};
+el('cam-overlay').onpointerleave = () => { camHover = null; drawCamPoints(); };
+
 el('cam-overlay').onpointerdown = (e) => {
   if (camPoints.length >= 4) return;
   const r = e.currentTarget.getBoundingClientRect();
   camPoints.push([(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]);
+  camHover = null;
   drawCamPoints();
   updateCamPrompt();
 };
+
+// Nudge the corner just placed, a single camera pixel at a time.
+window.addEventListener('keydown', (e) => {
+  if (!e.key.startsWith('Arrow') || !camPoints.length) return;
+  if (el('setup').hidden) return;
+  const panel = document.querySelector('.tab[data-panel="camera"]');
+  if (!panel || panel.hidden || !camSize) return;
+  const step = (e.shiftKey ? 5 : 1);
+  const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0],
+              ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (!d) return;
+  const i = camPoints.length - 1;
+  camPoints[i] = [camPoints[i][0] + d[0] / camSize[0],
+                  camPoints[i][1] + d[1] / camSize[1]];
+  drawCamPoints();
+  e.preventDefault();
+});
 
 el('cam-undo').onclick = () => { camPoints.pop(); drawCamPoints(); updateCamPrompt(); };
 
@@ -622,13 +685,19 @@ function drawCamPoints() {
     ctx.stroke();
   }
   pts.forEach(([x, y], i) => {
+    // A ring rather than a filled blob: you need to see the corner you are
+    // placing it on, and the last one placed is the one the arrows move.
+    const last = i === pts.length - 1 && camPoints.length < 4;
     ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2);
-    ctx.fillStyle = '#27A37C'; ctx.fill();
-    ctx.fillStyle = '#04120D';
+    ctx.strokeStyle = last ? '#FFD24A' : '#27A37C';
+    ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = last ? '#FFD24A' : '#27A37C'; ctx.fill();
     ctx.font = 'bold 11px system-ui';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(i + 1), x, y);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(i + 1), x + 12, y - 10);
   });
+  drawLoupe(ctx, w, h);
 }
 
 el('cam-save').onclick = async () => {

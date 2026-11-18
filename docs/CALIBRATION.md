@@ -35,7 +35,26 @@ Open the scoreboard page, press **Setup**, then the **Camera** tab.
   last, because auto-exposure needs a moment to settle and calibrating
   against a dark first frame is how you end up clicking the wrong corners.
 - Tap the four corners in order: top-left, top-right, bottom-right,
-  bottom-left. **Undo corner** steps back.
+  bottom-left. A magnifier follows the cursor while you place them, the
+  **arrow keys** nudge the last corner by a single camera pixel (shift for
+  five), and **Undo corner** steps back.
+
+  Take your time over this. Measured on this project's own geometry, click
+  precision is the largest single source of position error anywhere in the
+  system — larger than parallax, and far larger than anything the detector
+  does:
+
+  | how far off each click is | resulting ball error (median) | worst |
+  |---|---|---|
+  | 1 px | 1.6 mm | 5.7 mm |
+  | 3 px | 5.4 mm | 16.5 mm |
+  | 5 px | 7.1 mm | 26.9 mm |
+  | 8 px | 11.5 mm | 40.2 mm |
+
+  A ball is 57 mm across and a pocket captures within 70 mm, so eight sloppy
+  pixels is the difference between scoring a hanging ball correctly and not.
+  The picture is displayed much smaller than the camera's real resolution,
+  which is why the magnifier is there.
 - **Save calibration** writes `config/calibration.json` and reports the
   average error in millimetres.
 
