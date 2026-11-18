@@ -1,0 +1,7 @@
+{
+  "detector": "color",
+  "ball_px": 36.0,
+  "cloth_tolerance": 34,
+  "min_fill": 0.45,
+  "_comment": "ball_px is a ball's diameter in the WARPED top-down view, which is table length in mm times 0.5. For an 8ft table that is 57.15 * 0.5 = 28.6 px, so raise min_fill and lower ball_px if blobs are being rejected. Switch to YOLO with {\"detector\": \"yolo\", \"weights\": \"best.pt\"}."
+}

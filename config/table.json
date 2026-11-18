@@ -1,0 +1,8 @@
+{
+  "size": "8ft",
+  "length": 2235.0,
+  "width": 1118.0,
+  "ball_radius": 28.6,
+  "pocket_capture": 70.0,
+  "_comment": "Playing surface inside the cushions, in millimetres. Measure your own table: nominal sizes vary by manufacturer. Sizes known by name: 7ft 8ft 8ft-pro 9ft 10ft snooker."
+}

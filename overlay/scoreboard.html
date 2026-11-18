@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool Arena — scoreboard</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body class="board">
+  <h1 id="title">Pool Arena</h1>
+  <div class="sub" id="sub">connecting…</div>
+
+  <div class="controls">
+    <select id="game"></select>
+    <input id="players" value="Player 1, Player 2" size="24">
+    <button class="primary" id="start">Start game</button>
+    <button id="pass">Pass turn</button>
+    <button id="boom">Test effect</button>
+  </div>
+
+  <div class="players" id="players-list"></div>
+  <div class="log" id="log"></div>
+
+  <script type="module" src="/src/board.js"></script>
+</body>
+</html>

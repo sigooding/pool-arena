@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# runtime artefacts: these are specific to one room and one camera
+config/calibration.json
+config/projector.json
+*.jsonl
+recordings/
+weights/
+*.pt
+
+.DS_Store
+.vscode/
+.idea/
