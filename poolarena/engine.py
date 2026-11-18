@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from .attract import AttractMode, IdleWatch
 from .ballset import AMERICAN, BallSet
 from .events import ShotDetector, ShotWindow
 from .geometry import Table
@@ -33,6 +35,11 @@ class Engine:
     on_shot: Callable[[ShotWindow], None] | None = None
     #: how many shots can be taken back
     undo_depth: int = 50
+    #: seconds of a still, unattended table before the attract mode starts.
+    #: 0 turns it off. Generous on purpose: a player lining up a long shot can
+    #: be motionless for a minute, and a table that lights up mid-stance is
+    #: worse than one that never does.
+    idle_after: float = 90.0
 
     def __post_init__(self) -> None:
         self.detector = ShotDetector(self.table)
@@ -46,6 +53,20 @@ class Engine:
         # is to keep the state that existed before, and put it back.
         self._undo: list[tuple[Game, dict[str, Any]]] = []
         self._redo: list[tuple[Game, dict[str, Any]]] = []
+        self.idle = IdleWatch(self.idle_after)
+        self.attract = AttractMode(table=self.table,
+                                   broadcast=self.hub.broadcast,
+                                   ball_set=self.ball_set,
+                                   games=available(self.ball_set))
+        # Idle cannot be judged only when a frame arrives. A camera that has
+        # stalled, or a run loop that is sleeping between shots, would never
+        # ask the question — and "no frames at all" is about as idle as a
+        # table gets. So a heartbeat asks once a second regardless.
+        self._heart = threading.Thread(target=self._heartbeat, name="idle-watch",
+                                       daemon=True)
+        self._heart_stop = threading.Event()
+        if self.idle_after > 0:
+            self._heart.start()
 
     # --- game lifecycle ----------------------------------------------------
     def start_game(self, name: str, players: list[str] | None = None,
@@ -117,6 +138,7 @@ class Engine:
     # --- the main loop -----------------------------------------------------
     def feed(self, state: TableState) -> ShotWindow | None:
         """Push one observed table state through the whole chain."""
+        self._tick_attract(state)
         now = time.time()
         if now - self._last_push > 1.0 / 30.0:
             self.hub.broadcast({"type": "state", "state": state.to_json()}, sticky_key="state")
@@ -163,6 +185,45 @@ class Engine:
         if self.on_shot:
             self.on_shot(window)
         return window
+
+    # --- attract mode --------------------------------------------------------
+    def _tick_attract(self, state: TableState) -> None:
+        """Start the attract loop on an abandoned table; kill it on contact.
+
+        Stopping comes first and is unconditional: a ball moving, or an arm
+        over the cloth, means a person is there, and nothing should be
+        crawling across the table while they shoot.
+        """
+        if self.idle.observe(state):
+            if self.attract.active:
+                self.attract.stop()
+                self._awaiting_turn_fx = True      # put the game's guides back
+            return
+        if self.idle_after > 0 and not self.attract.active and self.idle.should_attract():
+            self.attract.games = available(self.ball_set)
+            self.attract.start()
+
+    def _heartbeat(self) -> None:
+        while not self._heart_stop.wait(1.0):
+            try:
+                if (self.idle_after > 0 and not self.attract.active
+                        and self.idle.should_attract()):
+                    self.attract.games = available(self.ball_set)
+                    self.attract.start()
+            except Exception:
+                # A background watcher must never take the engine down.
+                pass
+
+    def close(self) -> None:
+        self._heart_stop.set()
+        self.attract.stop()
+
+    def wake(self) -> None:
+        """Any deliberate interaction counts as someone being there."""
+        self.idle.note_activity()
+        if self.attract.active:
+            self.attract.stop()
+            self._awaiting_turn_fx = True
 
     # --- undo ---------------------------------------------------------------
     def _snapshot(self, game: Game) -> Game:
@@ -261,6 +322,8 @@ class Engine:
         buttons should be able to run the whole night.
         """
         kind = msg.get("type") or msg.get("cmd")
+        if kind not in ("ping", "games"):
+            self.wake()
         if kind == "start_game":
             try:
                 self.start_game(msg.get("game", "8ball"), msg.get("players"),
@@ -314,6 +377,13 @@ class Engine:
                                 "dx": float(msg.get("dx", 0)),
                                 "dy": float(msg.get("dy", 0)),
                                 "reset": bool(msg.get("reset", False))})
+        elif kind == "attract":
+            # Lets the UI preview it without waiting out the idle timer.
+            if msg.get("on"):
+                self.attract.games = available(self.ball_set)
+                self.attract.start()
+            else:
+                self.attract.stop()
         elif kind == "ping":
             self.hub.broadcast({"type": "pong", "t": time.time()})
 

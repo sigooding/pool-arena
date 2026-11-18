@@ -83,8 +83,22 @@ This is the part no app on a phone can do, and where I'd spend the time.
 
 ## Ambience
 
-- **Idle attract mode.** Slow drifting light on an unused table, pulled into a
-  sharp "ready" state when a ball moves. Good for a bar.
+- ✅ **Idle attract mode.** An abandoned table plays a ghost game of pool with
+  itself — glowing balls with comet tails, a slow band of light crossing the
+  cloth, and a caption cycling through "rack up to play" and the games it
+  knows. The point is advertising: a dark table in the corner of a room is
+  invisible, and this is the reason to have hung a projector over it in the
+  first place.
+
+  Two things make or break it. It must **stop the instant anyone touches the
+  table** — a ball moving or an arm over the cloth clears it, because light
+  crawling over a real shot is worse than no attract mode at all. And it must
+  **say how to start**; pretty lights that do not tell a stranger to rack up
+  are decoration, not an invitation.
+
+  Tuned with `--idle-after` (default 90 s, `0` disables). The delay is
+  deliberately generous: a player lining up a long shot can be motionless for
+  a minute, and a table that lights up mid-stance would be infuriating.
 - **Player colours.** Each player owns a hue; their turn washes the rails in it.
   Already half-built via `spotlight`.
 - **Re-rack guide.** Project the triangle outline on the foot spot, with each

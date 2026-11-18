@@ -328,6 +328,14 @@ el('tabs').onclick = (e) => {
 };
 el('pass').onclick = () => send({ type: 'next_turn' });
 el('undo').onclick = () => send({ type: 'undo' });
+// Any other command wakes the table, so this is a toggle the engine tracks
+// rather than one the page has to remember.
+let attracting = false;
+el('attract').onclick = () => {
+  attracting = !attracting;
+  el('attract').textContent = attracting ? 'Stop attract' : 'Attract mode';
+  send({ type: 'attract', on: attracting });
+};
 el('redo').onclick = () => send({ type: 'redo' });
 el('boom').onclick = () => send({
   type: 'test_effect', name: 'fireworks', args: { duration: 2500, palette: 'rainbow' },

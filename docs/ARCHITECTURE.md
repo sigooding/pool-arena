@@ -138,18 +138,32 @@ Server to client:
 | `shot` | the full record: events + verdict | no |
 | `history` | the last 25 shots | yes |
 | `undo_result` | whether an undo or redo took | no |
+| `attract` | a frame of the ghost game, or `active: false` | no |
 
 Sticky messages are replayed to a client when it connects, so opening the
 overlay mid-game shows the right thing immediately.
 
 Client to server: `start_game`, `next_turn`, `call_pocket`, `games`,
 `test_effect`, `projector_calibration`, `calibrate`, `projector_nudge`,
-`undo`, `redo`, `adjust_score`, `ping`.
+`undo`, `redo`, `adjust_score`, `attract`, `ping`.
 
 The scoreboard's shot feed is built from the sticky `history` message rather
 than from live `shot` messages. That is what makes a page opened in the middle
 of a frame show what has happened, and it means undo needs no special case in
 the client: the list simply comes back shorter.
+
+## Attract mode
+
+`poolarena/attract.py` runs a second simulator on a daemon thread and streams
+ghost-ball frames to the overlay. It never touches the real game, so a match
+paused mid-frame is safe.
+
+Idle is judged two ways, because neither alone is enough. `Engine.feed()`
+notices movement and kills the attract loop at once; a one-second heartbeat
+starts it. The heartbeat is what covers a camera that has stalled or a run
+loop sleeping between shots — no frames at all is about as idle as a table
+gets, and an engine that only asked the question when a frame arrived would
+never ask it.
 
 ## Undo
 

@@ -21,6 +21,11 @@ Then open <http://localhost:8777/> for the projector view and
 
 ![The projector overlay: aiming line with ghost ball and tangent line, lit pocket, particles](docs/overlay.png)
 
+Leave it alone and it plays a ghost game of pool with itself until someone
+racks up:
+
+![Attract mode: ghost balls with comet tails and a caption reading RACK UP](docs/attract.png)
+
 The tablet on the rail shows the live table, the roster as actual balls, and a
 colour-coded shot feed:
 
@@ -59,7 +64,10 @@ colour-coded shot feed:
   what the cloth reflects, so red is nearly invisible on green and fine on
   pale blue. Set `cloth` in `config/table.json` (or `--cloth "#8FB7D9"`) and
   the overlay picks a palette measured against that surface.
-- **88 tests** covering geometry, shot detection, every rule set and the full
+- **An attract mode.** Leave the table alone and it starts playing a ghost
+  game of pool with itself, captioned with how to begin and what games it
+  knows. A ball moving — or an arm over the cloth — clears it instantly.
+- **101 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

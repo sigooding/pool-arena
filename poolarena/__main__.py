@@ -99,6 +99,7 @@ def cmd_demo(args) -> int:
     ball_set = load_ball_set(args)
     hub = Hub()
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
+                    idle_after=args.idle_after,
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -194,6 +195,7 @@ def cmd_run(args) -> int:
 
     hub = Hub()
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
+                    idle_after=args.idle_after,
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -306,6 +308,9 @@ def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="table config json")
     common.add_argument("--size", default="8ft", help="7ft|8ft|8ft-pro|9ft|10ft|snooker")
+    common.add_argument("--idle-after", type=float, default=90.0,
+                        help="seconds of a still, empty table before the "
+                             "attract mode starts; 0 turns it off")
     common.add_argument("--cloth", default=None,
                         help="cloth colour as hex, e.g. #8FB7D9 for pale blue; "
                              "the projected palette is chosen from it")

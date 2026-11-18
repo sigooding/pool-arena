@@ -10,6 +10,7 @@ import { View } from './view.js';
 import { makeEffect } from './effects.js';
 import { setBallSet } from './balls.js';
 import { setCloth } from './cloth.js';
+import { Attract } from './attract.js';
 
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
@@ -41,6 +42,7 @@ const scene = {
 
 const view = new View(scene.table);
 let effects = [];
+const attract = new Attract();
 let selected = 0;          // corner being nudged, from keys or from the tablet
 let showBalls = localStorage.getItem('poolarena.showBalls') === '1';
 let showTrails = true;
@@ -121,6 +123,9 @@ function handle(msg) {
       break;
     case 'scoreboard':
       scene.scoreboard = msg.scoreboard;
+      break;
+    case 'attract':
+      attract.update(msg);
       break;
     case 'projector_calibration':
       if (msg.corners) view.setCorners(msg.corners);
@@ -284,6 +289,18 @@ function frame(now) {
     view.pathPoly(ctx, [[0, 0], [view.L, 0], [view.L, view.W], [0, view.W]]);
     ctx.clip();
   }
+
+  // Attract mode replaces the game layers rather than drawing over them: a
+  // paused match's aiming line crawling under a ghost game would be noise.
+  const attracting = attract.tick(dt);
+  if (attracting) {
+    attract.draw(ctx, view);
+    ctx.restore();
+    if (view.calibrating) view.drawCalibration(ctx);
+    requestAnimationFrame(frame);
+    return;
+  }
+
   for (const layer of ['guide']) {
     for (const fx of effects) if (fx.layer === layer) fx.draw(ctx, view, scene);
   }
@@ -333,6 +350,7 @@ const HELP = [
   ['b', 'draw tracked balls (alignment check)'],
   ['t', 'trails on/off'],
   ['o', 'clip effects to the table (default on)'],
+  ['a', 'preview the attract mode'],
   ['x', 'test explosion'],
   ['g', 'test pocket glows'],
   ['f', 'fullscreen'],
@@ -371,6 +389,8 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'x') {
     spawn({ name: 'explosion', args: { x: scene.table.length / 2, y: scene.table.width / 2,
                                        intensity: 1.6, palette: 'fire' } });
+  } else if (k === 'a') {
+    send({ type: 'attract', on: !attract.on });
   } else if (k === 'g') {
     for (const id of Object.keys(scene.pockets())) {
       spawn({ name: 'pocket_glow', args: { pocket: id, duration: 1500, intensity: 1.2 } });
