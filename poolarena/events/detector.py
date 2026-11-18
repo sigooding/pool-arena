@@ -24,6 +24,17 @@ MOVE_EPS = 6.0          # per-frame displacement that counts as moving
 SETTLE_FRAMES = 4       # consecutive still frames before the table is "at rest"
 MAX_SHOT = 25.0         # a shot longer than this is treated as a glitch
 RAIL_BAND = 45.0        # centre this close to a cushion counts as touching it
+#: A ball on its way into a pocket is last seen near one. At 30 fps a ball
+#: at 2 m/s covers 66 mm between frames, so this allows several frames of
+#: slack and still rules out a ball that vanished from open cloth.
+POCKET_SLACK = 320.0
+#: More than this many balls disappearing from open cloth at once is not a
+#: shot, it is the detector having lost the table.
+MAX_LOST = 2
+#: A ball that was never seen to move cannot have been potted. Low enough to
+#: allow a ball struck and pocketed almost between frames, high enough to
+#: reject detector jitter on a stationary ball.
+MIN_TRAVEL_TO_POT = 35.0
 
 
 @dataclass
@@ -73,6 +84,7 @@ class ShotDetector:
                 return None
             if moving:
                 self._begin(state)
+                self._accumulate(state, moving)   # the first moving frame counts
             else:
                 self.resting = state
             self._prev = state
@@ -138,6 +150,14 @@ class ShotDetector:
                 self._tracks[n].first_moved if self._tracks.get(n) and self._tracks[n].first_moved is not None else t
             )
 
+    def _last_step(self, number: int) -> tuple[float, float] | None:
+        """The ball's displacement over its final observed frame."""
+        tr = self._tracks.get(number)
+        if not tr or len(tr.points) < 2:
+            return None
+        (x1, y1), (x2, y2) = tr.points[-2], tr.points[-1]
+        return (x2 - x1, y2 - y1)
+
     def _rail_touch(self, number: int, x: float, y: float) -> str | None:
         t = self.table
         if x < RAIL_BAND:
@@ -160,13 +180,54 @@ class ShotDetector:
             b = prior[n]
             last = self._tracks.get(n)
             px, py = (last.points[-1] if last and last.points else (b.x, b.y))
-            pid = self.table.in_pocket(px, py) or self.table.nearest_pocket(px, py)[0]
+            pid, dist = self.table.nearest_pocket(px, py)
+            # How far it moved between where it sat before the shot and where
+            # it was last seen. A ball that never moved cannot have been
+            # potted, whatever it was sitting next to — physics, not a
+            # threshold. Measured against the resting position rather than
+            # along the track, because a ball struck hard may only be caught
+            # once on its way in, and a one-point track has no length.
+            travelled = math.hypot(px - b.x, py - b.y)
+
+            # How far from a pocket a ball may vanish depends on whether it
+            # was heading there. A flat distance cut would reject a genuine
+            # pot whenever the camera drops a frame — two missed frames at
+            # 4 m/s is over a quarter of a metre — while still accepting a
+            # ball that teleported sideways. So: generous along the
+            # direction of travel, strict across it.
+            allowed = POCKET_SLACK
+            step = self._last_step(n)
+            if step is not None:
+                pocket = self.table.pockets()[pid]
+                to_pocket = (pocket[0] - px, pocket[1] - py)
+                sn = math.hypot(*step) or 1e-9
+                pn = math.hypot(*to_pocket) or 1e-9
+                heading = (step[0] * to_pocket[0] + step[1] * to_pocket[1]) / (sn * pn)
+                if heading > 0.7:            # within about 45 degrees
+                    allowed = max(POCKET_SLACK, sn * 4)
+
+            if dist > allowed or travelled < MIN_TRAVEL_TO_POT:
+                # It did not go in a pocket, because it was not near one. A
+                # ball cannot leave the table from open cloth, so this is the
+                # detector losing it — a flicker of light, a dropped frame, a
+                # shadow across the cloth. Scoring it as potted would clear
+                # balls nobody struck.
+                ev.lost.append(n)
+                continue
             if n == 0:
                 ev.cue_scratched = True
                 ev.pocketed_in[0] = pid
             else:
                 ev.pocketed.append(n)
                 ev.pocketed_in[n] = pid
+
+        if len(ev.lost) > MAX_LOST:
+            ev.unreliable = (f"{len(ev.lost)} balls vanished from open cloth; "
+                             f"the camera lost the table rather than anything "
+                             f"being potted")
+        elif ev.lost and not ev.pocketed and not ev.cue_scratched:
+            ev.unreliable = (f"ball {ev.lost[0]} disappeared away from any "
+                             f"pocket")
 
         cue_track = self._tracks.get(0)
         ev.cue_struck = bool(cue_track and cue_track.first_moved is not None) or ev.cue_scratched

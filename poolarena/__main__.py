@@ -149,6 +149,7 @@ def cmd_demo(args) -> int:
                     idle_after=args.idle_after,
                     projector=not args.no_projector,
                     recordings=None if args.no_record else RECORDINGS,
+                    live=False,          # these balls are not real
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -157,7 +158,8 @@ def cmd_demo(args) -> int:
     engine.detector.reset(sim.state())
     engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
 
-    print(f"\n  demo running: {args.game}, {args.fps} fps, skill {args.skill}")
+    print(f"\n  DEMO — these balls are simulated, no camera is being read")
+    print(f"  {args.game}, {args.fps} fps, skill {args.skill}")
     print("  ctrl-c to stop\n")
 
     frame_time = 1.0 / args.fps

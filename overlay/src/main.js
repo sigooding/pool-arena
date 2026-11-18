@@ -98,6 +98,10 @@ function setStatus(text, ok) {
 function handle(msg) {
   switch (msg.type) {
     case 'table':
+      if (msg.live === false) {
+        statusEl.textContent = 'demo — simulated, no camera';
+        statusEl.className = 'sim';
+      }
       setBallSet(msg.ball_set);
       if (msg.table && msg.table.cloth) setCloth(msg.table.cloth);
       scene.table = { ...DEFAULT_TABLE, ...msg.table };
@@ -374,6 +378,13 @@ function renderHelp() {
   helpEl.innerHTML = HELP.map(([k, v]) => `<div><kbd>${k}</kbd><span>${v}</span></div>`).join('');
 }
 
+/** Acknowledge a keypress whose effect may not be visible on a still table.
+    Without this, turning trails off when nothing is moving looks exactly
+    like a shortcut that does not work. */
+function toast(text) {
+  spawn({ name: 'banner', args: { text, duration: 1100 } });
+}
+
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'c') {
@@ -382,11 +393,14 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'b') {
     showBalls = !showBalls;
     localStorage.setItem('poolarena.showBalls', showBalls ? '1' : '0');
+    toast(`tracked balls ${showBalls ? 'shown' : 'hidden'}`);
   } else if (k === 't') {
     showTrails = !showTrails;
+    toast(`trails ${showTrails ? 'on' : 'off'}`);
   } else if (k === 'o') {
     clipToTable = !clipToTable;
     localStorage.setItem('poolarena.clip', clipToTable ? '1' : '0');
+    toast(`clipping ${clipToTable ? 'on' : 'off'}`);
   } else if (k === 'f') {
     if (document.fullscreenElement) document.exitFullscreen();
     else document.documentElement.requestFullscreen();
@@ -423,6 +437,14 @@ window.addEventListener('keydown', (e) => {
 
 // --- go -------------------------------------------------------------------
 renderHelp();
+// Show the key list the first time this browser opens the page. The
+// shortcuts belong to this page only, and several do nothing visible on a
+// still table, which makes them feel broken rather than undiscovered.
+if (!localStorage.getItem('poolarena.seenHelp')) {
+  helpEl.classList.add('show');
+  localStorage.setItem('poolarena.seenHelp', '1');
+  setTimeout(() => helpEl.classList.remove('show'), 6000);
+}
 sound.setEnabled(localStorage.getItem('poolarena.sound') !== '0');
 // Browsers will not make a sound until the page has been interacted with.
 for (const ev of ['pointerdown', 'keydown']) {

@@ -38,12 +38,14 @@ function route(msg) {
     case 'games':
       games = msg.games;
       if (msg.projector !== undefined) hasProjector = msg.projector;
+      if (msg.live !== undefined) el('sim-badge').hidden = msg.live;
       if (msg.ball_set) applyBallSet(msg.ball_set);
       renderGames();
       break;
     case 'table':
       if (msg.ball_set) applyBallSet(msg.ball_set);
       if (msg.projector !== undefined) hasProjector = msg.projector;
+      if (msg.live !== undefined) el('sim-badge').hidden = msg.live;
       mini.setTable(msg.table);
       break;
     case 'state':      mini.setBalls(msg.state.balls || []); break;

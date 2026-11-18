@@ -169,3 +169,19 @@ def test_the_heartbeat_starts_it_without_any_frames():
         assert e.attract.active
     finally:
         e.close()
+
+
+def test_starting_a_game_stops_the_ghost_game():
+    """A ghost game crawling over a live rack is worse than no attract mode."""
+    hub, _ = collecting_hub()
+    e = Engine(table=TABLE, hub=hub, idle_after=0.2)
+    try:
+        still = state(b0=(400, 600))
+        e.feed(still)
+        time.sleep(0.3)
+        e.feed(still)
+        assert e.attract.active
+        e.start_game("9ball", players=["A", "B"])
+        assert not e.attract.active
+    finally:
+        e.close()

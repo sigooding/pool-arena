@@ -35,6 +35,9 @@ body.projector:hover { cursor: default; }
 }
 #status.ok { color: var(--ok); }
 #status.bad { color: var(--bad); }
+/* Simulated data has to be labelled even on the projector, where the label
+   is otherwise the one thing we try hardest not to draw. */
+#status.sim { color: #FFD24A; opacity: 0.85; }
 
 .panel {
   position: fixed;

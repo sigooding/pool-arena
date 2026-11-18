@@ -583,3 +583,16 @@ button:disabled:hover { background: var(--surface-2); }
             padding: 4px 0; font-size: 13px; }
 .stat-row span:first-child { color: var(--dim); }
 .stat-row b { font-variant-numeric: tabular-nums; }
+
+
+/* Simulated data must never be mistaken for a real table. */
+.sim-badge {
+  align-self: center;
+  font-size: var(--t-label);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #3A2A08;
+  border: 1px solid #7A5A12;
+  color: #FFD24A;
+  white-space: nowrap;
+}

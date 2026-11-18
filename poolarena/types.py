@@ -99,6 +99,11 @@ class ShotEvents:
     rails_after_contact: int = 0        # total cushion touches after contact
     balls_to_rail: int = 0              # distinct balls that reached a cushion
     cue_struck: bool = True             # False == no shot taken / cue never moved
+    #: balls that disappeared nowhere near a pocket — lost by the detector
+    #: rather than potted
+    lost: list[int] = field(default_factory=list)
+    #: set when the frame cannot be believed, so nothing should be scored
+    unreliable: str = ""
     contacts: list[Contact] = field(default_factory=list)
     trace: dict[int, list[tuple[float, float]]] = field(default_factory=dict)
     duration: float = 0.0
@@ -112,6 +117,8 @@ class ShotEvents:
             "rails_after_contact": self.rails_after_contact,
             "balls_to_rail": self.balls_to_rail,
             "cue_struck": self.cue_struck,
+            "lost": self.lost,
+            "unreliable": self.unreliable,
             "duration": round(self.duration, 2),
         }
 

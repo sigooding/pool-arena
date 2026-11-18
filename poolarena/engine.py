@@ -30,6 +30,10 @@ class Engine:
     table: Table
     hub: Hub
     ball_set: BallSet = AMERICAN
+    #: False when the table states are coming from the simulator rather than
+    #: a camera. Nothing behaves differently — but a person looking at the
+    #: screen must be able to tell, or they will believe a simulated score.
+    live: bool = True
     #: False when nothing is projecting. The engine behaves identically —
     #: the scoreboard draws the guides instead — but the UI stops suggesting
     #: games whose guides belong on the cloth.
@@ -99,6 +103,9 @@ class Engine:
                 f"{cls.title} needs {want} players, got {len(names)}: "
                 f"{', '.join(names)}")
 
+        # A new frame means somebody is at the table, so the attract loop has
+        # to go: a ghost game crawling over a live rack is worse than nothing.
+        self.wake()
         if self.recorder:
             self.recorder.finish()          # close any game left hanging
         self.game = cls(players=names, table=self.table, options=options or {},
@@ -112,7 +119,8 @@ class Engine:
         self._awaiting_turn_fx = True
         self.hub.broadcast({"type": "table", "table": self.table.to_json(),
                             "ball_set": self.ball_set.to_json(),
-                            "projector": self.projector}, sticky_key="table")
+                            "projector": self.projector,
+                            "live": self.live}, sticky_key="table")
         # Wipe every persistent effect before the new game draws anything. A new
         # game's opening batch may contain no persistent guides at all (8-ball
         # shows nothing until groups are assigned), so without an explicit clear
@@ -220,6 +228,19 @@ class Engine:
             return None
 
         if self.game is None:
+            return window
+
+        if window.events.unreliable:
+            # Better to score nothing than to score fiction. The operator can
+            # see what happened and put it right with +/- if it mattered.
+            self.hub.broadcast({"type": "unreliable",
+                                "reason": window.events.unreliable,
+                                "lost": window.events.lost})
+            self.emit_effects([
+                Effect("banner", {"text": "SHOT NOT READ",
+                                  "subtitle": window.events.unreliable,
+                                  "tone": "bad", "duration": 3500}, layer="hud")])
+            self._awaiting_turn_fx = True
             return window
 
         ctx = ShotContext(before=window.before, after=window.after,
@@ -442,7 +463,8 @@ class Engine:
     def _after_rewind(self, message: str) -> None:
         self.hub.broadcast({"type": "table", "table": self.table.to_json(),
                             "ball_set": self.ball_set.to_json(),
-                            "projector": self.projector}, sticky_key="table")
+                            "projector": self.projector,
+                            "live": self.live}, sticky_key="table")
         # Clear the cloth: the effects on it belong to a shot that no longer
         # counts, and leaving a win banner up after undoing the winning shot
         # would be worse than showing nothing.
@@ -474,7 +496,8 @@ class Engine:
         elif kind == "games":
             self.hub.broadcast({"type": "games", "games": available(self.ball_set),
                                 "ball_set": self.ball_set.to_json(),
-                                "projector": self.projector})
+                                "projector": self.projector,
+                                "live": self.live})
         elif kind == "call_pocket" and self.game and hasattr(self.game, "call"):
             self.game.call(msg["pocket"])          # type: ignore[attr-defined]
             self.emit_effects([Effect("pocket_glow", {"pocket": msg["pocket"],
