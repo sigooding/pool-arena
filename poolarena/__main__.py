@@ -82,6 +82,20 @@ def cmd_demo(args) -> int:
     print("  ctrl-c to stop\n")
 
     frame_time = 1.0 / args.fps
+
+    def rack_for(game_name: str) -> None:
+        sim.rack("9ball" if game_name == "9ball" else "8ball")
+
+    def current_game() -> str:
+        # Whatever is live, which may have been chosen from the tablet rather
+        # than on the command line.
+        return engine.game.name if engine.game else args.game
+
+    def current_players() -> list[str]:
+        if engine.game:
+            return [p.name for p in engine.game.players]
+        return [p.strip() for p in args.players.split(",")]
+
     try:
         # Give a browser a moment to connect so the opening effects are seen.
         deadline = time.time() + args.warmup
@@ -95,12 +109,12 @@ def cmd_demo(args) -> int:
                 sim.spot_cue()
                 engine.feed(sim.state())
             if len(sim.balls) <= 1:
-                sim.rack("9ball" if args.game == "9ball" else "8ball")
+                rack_for(current_game())
                 engine.feed(sim.state())
 
             info = auto_shot(sim, skill=args.skill)
             if info.get("shot") == "none":
-                sim.rack(args.game if args.game in ("8ball", "9ball") else "8ball")
+                rack_for(current_game())
                 continue
             while sim.moving():
                 engine.feed(sim.step_frame())
@@ -112,11 +126,11 @@ def cmd_demo(args) -> int:
             if engine.game and engine.game.over:
                 print(f"  game over after {shots} shots")
                 time.sleep(5)
-                sim.rack("9ball" if args.game == "9ball" else "8ball")
+                name, players = current_game(), current_players()
+                rack_for(name)
                 sim.spot_cue()
                 engine.detector.reset(sim.state())
-                engine.start_game(args.game,
-                                  players=[p.strip() for p in args.players.split(",")])
+                engine.start_game(name, players=players)
             time.sleep(args.pause)
     except KeyboardInterrupt:
         print("\n  stopped")

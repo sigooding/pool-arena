@@ -77,6 +77,15 @@ body.board {
   letter-spacing: 0.02em;
 }
 .board .sub { color: var(--dim); font-size: 12px; margin-bottom: 18px; }
+.board .error {
+  margin: 0 0 14px;
+  padding: 10px 13px;
+  border: 1px solid #7f1d1d;
+  border-radius: 9px;
+  background: #2a0f14;
+  color: #fca5a5;
+  font-size: 13px;
+}
 .players { display: grid; gap: 10px; margin-bottom: 20px; }
 .player {
   display: flex; align-items: center; gap: 14px;

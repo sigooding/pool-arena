@@ -207,3 +207,50 @@ def test_position_drill_grades_distance():
     res = play(g, before, after, events(pocketed=[3], pockets={3: "TR"}, first=3))
     assert g.players[0].score >= 9
     assert "in the ring" in res.message
+
+
+# --- starting a game ------------------------------------------------------
+def test_engine_rejects_a_wrong_player_count():
+    import pytest
+
+    from poolarena.engine import Engine
+    from poolarena.server.ws import Hub
+
+    e = Engine(table=TABLE, hub=Hub())
+    with pytest.raises(ValueError, match="needs 3 players"):
+        e.start_game("cutthroat", players=["A", "B"])
+    with pytest.raises(ValueError, match="needs 3 players"):
+        e.start_game("cutthroat", players=["A", "B", "C", "D"])
+    assert e.start_game("cutthroat", players=["A", "B", "C"]).name == "cutthroat"
+
+
+def test_bad_start_is_reported_not_raised_to_the_client():
+    from poolarena.engine import Engine
+    from poolarena.server.ws import Hub
+
+    hub = Hub()
+    sent = []
+    hub.broadcast = lambda msg, sticky_key=None: sent.append(msg)   # type: ignore
+    e = Engine(table=TABLE, hub=hub)
+    e.handle_client_message({"type": "start_game", "game": "cutthroat",
+                             "players": ["A", "B"]})
+    assert any(m["type"] == "error" and "needs 3 players" in m["error"] for m in sent)
+    assert e.game is None
+
+
+def test_starting_a_game_tells_the_overlay_to_clear_old_guides():
+    """Switching games must wipe the previous game's persistent effects, even
+    when the new game draws nothing of its own on its first batch."""
+    from poolarena.engine import Engine
+    from poolarena.server.ws import Hub
+
+    hub = Hub()
+    sent = []
+    hub.broadcast = lambda msg, sticky_key=None: sent.append(msg)   # type: ignore
+    e = Engine(table=TABLE, hub=hub)
+    e.start_game("hotspots", players=["A"])
+    sent.clear()
+    e.start_game("8ball", players=["A", "B"])
+    batches = [m for m in sent if m["type"] == "effects"]
+    assert batches, "starting a game must send an effects batch"
+    assert batches[0].get("clear") == "all"

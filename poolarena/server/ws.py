@@ -222,7 +222,11 @@ def make_handler(hub: Hub, static_root: Path,
                 self._json({"ok": False, "error": "bad json"}, 400)
                 return
             if hub.on_message:
-                hub.on_message(msg, None)   # type: ignore[arg-type]
+                try:
+                    hub.on_message(msg, None)   # type: ignore[arg-type]
+                except Exception as exc:        # a bad command is not a crash
+                    self._json({"ok": False, "error": str(exc)}, 400)
+                    return
             self._json({"ok": True})
 
         def _json(self, obj: Any, status: int = 200) -> None:

@@ -39,12 +39,24 @@ class Engine:
     def start_game(self, name: str, players: list[str] | None = None,
                    options: dict[str, Any] | None = None) -> Game:
         cls = get_game(name)
-        self.game = cls(players=players, table=self.table, options=options or {})
+        names = [n for n in (players or []) if n] or ["Player 1", "Player 2"]
+        if not (cls.min_players <= len(names) <= cls.max_players):
+            want = (str(cls.min_players) if cls.min_players == cls.max_players
+                    else f"{cls.min_players}-{cls.max_players}")
+            raise ValueError(
+                f"{cls.title} needs {want} players, got {len(names)}: "
+                f"{', '.join(names)}")
+
+        self.game = cls(players=names, table=self.table, options=options or {})
         self.detector.reset(self.detector.resting)
         self.history.clear()
         self._awaiting_turn_fx = True
         self.hub.broadcast({"type": "table", "table": self.table.to_json()}, sticky_key="table")
-        self.emit_effects(self.game.on_start())
+        # Wipe every persistent effect before the new game draws anything. A new
+        # game's opening batch may contain no persistent guides at all (8-ball
+        # shows nothing until groups are assigned), so without an explicit clear
+        # the previous game's zones or highlights stay lit on the cloth.
+        self.emit_effects(self.game.on_start(), clear="all")
         self.push_scoreboard()
         return self.game
 
@@ -53,10 +65,16 @@ class Engine:
             self.hub.broadcast({"type": "scoreboard", "scoreboard": self.game.scoreboard()},
                                sticky_key="scoreboard")
 
-    def emit_effects(self, effects: list[Effect]) -> None:
-        if not effects:
+    def emit_effects(self, effects: list[Effect], clear: str | None = None) -> None:
+        """Send a batch. `clear` drops existing persistent effects first:
+        "all", or a single layer name ("guide" / "fx" / "hud")."""
+        if not effects and not clear:
             return
-        self.hub.broadcast({"type": "effects", "effects": [e.to_json() for e in effects]})
+        msg: dict[str, Any] = {"type": "effects",
+                               "effects": [e.to_json() for e in effects]}
+        if clear:
+            msg["clear"] = clear
+        self.hub.broadcast(msg)
 
     # --- the main loop -----------------------------------------------------
     def feed(self, state: TableState) -> ShotWindow | None:
@@ -112,7 +130,14 @@ class Engine:
         """
         kind = msg.get("type") or msg.get("cmd")
         if kind == "start_game":
-            self.start_game(msg.get("game", "8ball"), msg.get("players"), msg.get("options"))
+            try:
+                self.start_game(msg.get("game", "8ball"), msg.get("players"),
+                                msg.get("options"))
+            except (ValueError, KeyError) as exc:
+                # Broadcast rather than reply: the click came from the tablet,
+                # but the person is probably looking at the table.
+                self.hub.broadcast({"type": "error", "error": str(exc),
+                                    "context": "start_game"})
         elif kind == "games":
             self.hub.broadcast({"type": "games", "games": available()})
         elif kind == "call_pocket" and self.game and hasattr(self.game, "call"):

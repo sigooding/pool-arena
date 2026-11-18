@@ -107,7 +107,12 @@ function handle(msg) {
       break;
     }
     case 'effects':
-      applyBatch(msg.effects || []);
+      applyBatch(msg.effects || [], msg.clear);
+      break;
+    case 'error':
+      console.warn('engine:', msg.error);
+      spawn({ name: 'banner', args: { text: 'CANNOT START', subtitle: msg.error,
+                                      tone: 'bad', duration: 4000 } });
       break;
     case 'scoreboard':
       scene.scoreboard = msg.scoreboard;
@@ -126,7 +131,14 @@ function handle(msg) {
 // not survive into this turn. Clearing is per batch, never per effect: a game
 // that lights two things at once (cut-throat marks your balls *and* your
 // targets) sends them together and both stay up.
-function applyBatch(list) {
+function applyBatch(list, clear) {
+  // An explicit clear wins over the per-batch rule below: a new game must be
+  // able to wipe the previous one's guides even when it draws nothing itself.
+  if (clear === 'all') {
+    effects = effects.filter((x) => !x.persist);
+  } else if (clear) {
+    effects = effects.filter((x) => !(x.persist && x.layer === clear));
+  }
   const made = [];
   for (const e of list) {
     const fx = makeEffect(e.name, e.args, scene);

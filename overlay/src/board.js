@@ -17,6 +17,7 @@ function connect() {
     if (msg.type === 'games') { games = msg.games; renderGames(); }
     if (msg.type === 'scoreboard') { board = msg.scoreboard; render(); }
     if (msg.type === 'shot') flashShot(msg.shot);
+    if (msg.type === 'error') showError(msg.error);
   };
 }
 
@@ -49,16 +50,42 @@ function render() {
     .map((l) => `<div>${l}</div>`).join('');
 }
 
+// Its own element, not the subtitle: a game in progress pushes a scoreboard
+// update every shot, and that would wipe the message before it was read.
+function showError(text) {
+  const box = el('error');
+  box.textContent = text;
+  box.hidden = false;
+  clearTimeout(showError.timer);
+  showError.timer = setTimeout(() => { box.hidden = true; }, 8000);
+}
+
 function flashShot(shot) {
   const r = shot.result || {};
   if (r.foul) el('sub').textContent = `foul: ${r.foul}`;
 }
 
-el('start').onclick = () => send({
-  type: 'start_game',
-  game: el('game').value,
-  players: el('players').value.split(',').map((s) => s.trim()).filter(Boolean),
-});
+// Pre-fill a sensible roster when the game changes, so picking cut-throat
+// does not fail on the two names left over from 8-ball.
+el('game').onchange = () => {
+  const g = games.find((x) => x.name === el('game').value);
+  if (!g) return;
+  const have = el('players').value.split(',').map((s) => s.trim()).filter(Boolean);
+  if (have.length >= g.min_players && have.length <= g.max_players) return;
+  const n = Math.max(g.min_players, Math.min(g.max_players, have.length || g.min_players));
+  const names = [...have];
+  while (names.length < n) names.push(`Player ${names.length + 1}`);
+  el('players').value = names.slice(0, n).join(', ');
+};
+
+el('start').onclick = () => {
+  el('error').hidden = true;
+  send({
+    type: 'start_game',
+    game: el('game').value,
+    players: el('players').value.split(',').map((s) => s.trim()).filter(Boolean),
+  });
+};
 el('pass').onclick = () => send({ type: 'next_turn' });
 el('boom').onclick = () => send({
   type: 'test_effect', name: 'fireworks', args: { duration: 2500, palette: 'rainbow' },
