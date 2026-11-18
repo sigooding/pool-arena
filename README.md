@@ -80,7 +80,12 @@ colour-coded shot feed:
   would have been on the cloth — live zones, the nominated pocket, aiming
   lines — are drawn on the scoreboard's table view instead, so the
   projection-native games stay playable.
-- **138 tests** covering geometry, shot detection, every rule set and the full
+- **Depth-based ball finding** (`--depth-balls`). A Kinect's depth stream
+  has no illumination term at all, so shadows, glare and cloth colour cannot
+  affect it: depth says where the balls are, colour says which ball each one
+  is. Found every ball on synthetic frames at noise several times worse than
+  the real sensor.
+- **151 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

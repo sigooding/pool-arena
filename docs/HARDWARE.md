@@ -134,6 +134,38 @@ overlap. The trade is a very wide lens at 0.8 m, heavy distortion at the
 edges, large parallax (correctable — you know the height precisely), and
 lamps sitting right beside the lens, so shield them.
 
+### Depth: the one thing shadows cannot touch
+
+If you have a Kinect v2 and a badly lit table, this is the reason to keep it.
+
+Colour detection fails in exactly the ways a pool room fails — a lamp's hot
+centre, a player's shadow, glare on a ball, cloth that is nearly the colour
+of a green ball. **Depth fails in none of them.** There is no illumination
+term in a depth map at all: a shadow has no depth, glare has no depth, and
+the cloth's colour is irrelevant. A ball is simply 57 mm of "closer to the
+sensor than the cloth is", in the dark as much as in daylight.
+
+The resolution is enough. A Kinect v2's depth stream is 512x424, which at
+2.2 m is about 6 mm per pixel — a ball is ~9 px across, around 70 pixels to
+work with, standing 57 mm proud against a few mm of sensor noise. On
+synthetic frames every ball is found at noise levels up to 10 mm, which is
+several times worse than the real sensor.
+
+What depth cannot do is tell a red from a yellow or a 3 from an 11. So the
+division of labour is:
+
+> **depth says where the balls are, colour says which ball each one is.**
+
+Run it with `--depth-balls`. The depth camera needs its own calibration
+(`config/calibration-depth.json`) because its optics differ from the colour
+camera's — calibrate it the same way, clicking the cushion corners, and the
+two meet in table millimetres rather than being registered pixel to pixel.
+
+When colour loses balls to a shadow, those balls still appear, marked as
+located-but-unidentified rather than vanishing. For scoring that is usually
+enough: the system knows something is there, so it does not score a shadowed
+ball as potted.
+
 ### Shadows on the cloth, and what a YOLO model does about them
 
 Two different shadow problems get confused, and only one of them is a vision
@@ -195,7 +227,7 @@ numbers better.
 | | verdict |
 |---|---|
 | **2 × HD webcams** | **best value.** Cheap, high resolution, no USB bandwidth drama, and each can be placed purely for coverage — which matters most if a hanging light forces them off to the sides. |
-| **1 × Kinect v2 + 1 × HD webcam** | **good.** The Kinect's depth answers "is an arm over the cloth?" directly, and the webcam gives you a second, higher-resolution colour view. Uses the sensor you already own for the one thing it is uniquely good at. |
+| **1 × Kinect v2 + 1 × HD webcam** | **good, and better than it looks.** The Kinect's depth both answers "is an arm over the cloth?" and finds the balls themselves without caring about light at all (see below); the webcam gives a higher-resolution colour view to name them. Under a hanging lamp, with shadows, this is the strongest pairing. |
 | **2 × Kinect v2** | **avoid.** Each one wants its own USB 3 host controller — two on the same controller will not run — and they flood the bus. Their active infrared also illuminates the same scene, so the two depth streams interfere. All that for depth you do not need twice. |
 
 ### Setting it up

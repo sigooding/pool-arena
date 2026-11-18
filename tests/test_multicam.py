@@ -233,3 +233,39 @@ def test_a_higher_camera_needs_less_correction():
     low = _Geom(1800.0, (1117.5, 559.0)).correct(2000.0, 180.0)
     high = _Geom(3000.0, (1117.5, 559.0)).correct(2000.0, 180.0)
     assert math.dist(low, (2000.0, 180.0)) > math.dist(high, (2000.0, 180.0))
+
+
+# --- depth alongside colour ----------------------------------------------
+def test_depth_locates_but_does_not_name():
+    """A depth sensor finds balls under any lighting and knows nothing about
+    colour. It must not drag a named ball back to 'unknown'."""
+    colour = CameraView("colour", FakeSource([state([ball(3, 1000, 500, conf=0.7)])]),
+                        FakePipeline((1117.0, 559.0)))
+    depth = CameraView("depth", FakeSource([state([ball(-1, 1008, 506, conf=0.9)])]),
+                       FakePipeline((1117.0, 559.0)))
+    out = MultiPipeline(TABLE, [colour, depth]).read()
+    assert len(out.balls) == 1
+    b = out.balls[0]
+    assert b.number == 3, "colour names it even though depth was more confident"
+    assert 1000 <= b.x <= 1008, "but depth still pulls the position"
+
+
+def test_depth_alone_still_reports_a_ball():
+    """Better an unidentified ball than no ball: position alone is enough to
+    see that something was potted."""
+    depth = CameraView("depth", FakeSource([state([ball(-1, 1000, 500)])]),
+                       FakePipeline((1117.0, 559.0)))
+    out = MultiPipeline(TABLE, [depth]).read()
+    assert len(out.balls) == 1 and out.balls[0].number == -1
+
+
+def test_depth_corroboration_raises_confidence():
+    colour_only = MultiPipeline(TABLE, [
+        CameraView("colour", FakeSource([state([ball(3, 1000, 500, conf=0.6)])]),
+                   FakePipeline((1117.0, 559.0)))]).read().balls[0]
+    with_depth = MultiPipeline(TABLE, [
+        CameraView("colour", FakeSource([state([ball(3, 1000, 500, conf=0.6)])]),
+                   FakePipeline((1117.0, 559.0))),
+        CameraView("depth", FakeSource([state([ball(-1, 1004, 503, conf=0.9)])]),
+                   FakePipeline((1117.0, 559.0)))]).read().balls[0]
+    assert with_depth.confidence > colour_only.confidence

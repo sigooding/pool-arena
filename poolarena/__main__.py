@@ -293,6 +293,18 @@ def cmd_run(args) -> int:
                               camera_height_mm=float(c.get("height_mm") or 0.0),
                               nadir=tuple(c["nadir"]) if c.get("nadir") else None,
                               name=c["name"])
+        depth_calib = Path(c.get("depth_calibration")
+                           or CONFIG / "calibration-depth.json")
+        if args.depth_balls and depth_calib.exists():
+            from .vision.depth import DepthBallFinder
+            from .vision.multi import ColourAndDepth
+            finder = DepthBallFinder(table=table,
+                                     calibration=Calibration.load(depth_calib))
+            pipe = ColourAndDepth(table, pipe, finder, name=c["name"])
+            print(f"  depth       finding balls too ({depth_calib.name})")
+        elif args.depth_balls:
+            print(f"  depth       asked for, but no {depth_calib} — "
+                  f"calibrate the depth camera first", file=sys.stderr)
         views.append(CameraView(c["name"], open_source(c["source"]), pipe))
         print(f"  camera      {c['name']:<10} {c['source']:<12} "
               f"rms {calib.error_mm:.1f} mm"
@@ -441,6 +453,11 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--camera-height", type=float, default=0.0,
                    help="height of the camera above the cloth in mm. Enables "
                         "parallax correction; leave unset if unsure.")
+    r.add_argument("--depth-balls", action="store_true",
+                   help="also find balls in the Kinect's depth stream. Depth "
+                        "ignores shadows, glare and cloth colour entirely, so "
+                        "it locates balls where colour struggles; colour still "
+                        "names them. Needs config/calibration-depth.json.")
     r.add_argument("--camera-nadir",
                    help="\"X,Y\" in table mm: the spot on the cloth directly "
                         "under the lens. Needed when the camera is off to one "

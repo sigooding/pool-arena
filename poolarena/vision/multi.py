@@ -155,9 +155,21 @@ class MultiPipeline:
         # Identity goes to whichever camera was most confident, rather than
         # to an average: a number is a label, and averaging labels is
         # meaningless.
-        best_cam, best = max(cluster, key=lambda vb: vb[1].confidence
+        #
+        # A depth sensor is the case that makes this subtle. It locates balls
+        # beautifully and has no idea what colour they are, reporting -1. It
+        # must not win the identity vote merely by being well placed, or every
+        # ball becomes unknown — so anything that actually named the ball is
+        # preferred, and depth only names it when nothing else could.
+        named = [vb for vb in cluster if vb[1].number is not None and vb[1].number >= 0]
+        pool = named or cluster
+        best_cam, best = max(pool, key=lambda vb: vb[1].confidence
                              * vb[0].weight_at(vb[1].x, vb[1].y))
+        # Corroboration from a sensor that cannot name balls still counts:
+        # two devices agreeing something is there is worth more than one.
         agree = sum(1 for _, b in cluster if b.number == best.number)
+        if len(cluster) > len(named):
+            agree += 1
         confidence = min(1.0, best.confidence * (1.0 + 0.25 * (agree - 1)))
         return Ball(number=best.number, x=wx / total, y=wy / total,
                     kind=best.kind if best.number is not None else Kind.UNKNOWN,
@@ -187,3 +199,53 @@ class MultiPipeline:
     def close(self) -> None:
         for v in self.views:
             v.close()
+
+
+class ColourAndDepth:
+    """One sensor that returns both — a Kinect — used as two detectors.
+
+    Colour and depth come down the same cable in the same frame, so they
+    cannot be two CameraViews pulling from one source. Instead this runs both
+    over the same (colour, depth) pair and fuses the results through exactly
+    the machinery two separate cameras use.
+
+    The division of labour is the point: depth says where the balls are,
+    under any lighting at all, and colour says which ball each one is.
+    """
+
+    def __init__(self, table: Table, colour, depth, name: str = "kinect") -> None:
+        self.table = table
+        self.colour = colour
+        self.depth = depth
+        self.name = name
+        self._fuser = MultiPipeline(table, [
+            CameraView("colour", _NullSource(), colour),
+            CameraView("depth", _NullSource(), depth),
+        ])
+
+    @property
+    def nadir(self):
+        return self.colour.nadir
+
+    def learn_cloth(self, frame) -> None:
+        self.colour.learn_cloth(frame)
+
+    def process(self, color, depth=None) -> TableState:
+        states = []
+        if color is not None:
+            states.append((self._fuser.views[0], self.colour.process(color, depth)))
+        if depth is not None:
+            states.append((self._fuser.views[1], self.depth.process(None, depth)))
+        if not states:
+            return TableState(balls=[], ts=time.time(), settled=False, obstructed=True)
+        return self._fuser.fuse(states)
+
+
+class _NullSource:
+    """A source that is never read: ColourAndDepth owns the frames."""
+
+    def read(self):
+        return None
+
+    def close(self) -> None:
+        pass
