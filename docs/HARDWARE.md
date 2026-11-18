@@ -77,6 +77,72 @@ to be told apart *and* a stripe-versus-glare judgement on every ball. Run with
 The trade is that no camera can tell one red from another — so 9-ball and
 cut-throat are unavailable, by design, rather than being scored by guesswork.
 
+## If a light hangs over your table
+
+This is the common case and it changes the answer to everything below, so
+read it first.
+
+A traditional pool light sits about 0.8–0.9 m over the cloth, centred, and
+roughly a metre and a half long. It is exactly where a ceiling camera and a
+ceiling projector both want to be. From a camera at 2.2 m, that fixture
+casts a shadow across **84% of the table's length**; at 3 m it is still 77%.
+A single centred overhead camera is therefore not an option while the light
+is there — not "degraded", not viable.
+
+Three ways out, best first.
+
+### 1. Replace the light (recommended)
+
+Take the fixture down and light the table from the sides: diffused LED
+strips along the long rails, or bounced off a pale ceiling. This is already
+what the camera wants for other reasons — it kills the specular highlight on
+every ball that reads like a cue ball, and it removes the hot-centre,
+dark-corners gradient. It also frees the middle of the ceiling for both the
+camera and the projector, which is the only arrangement where everything is
+easy.
+
+If you are going to spend money anywhere on this project, spend it here
+rather than on a second camera.
+
+### 2. Keep the light, use two cameras off to the sides
+
+This is the case where a second camera stops being a luxury. Mount one past
+each long rail — or past opposite corners — so neither looks through the
+fixture, and let the fusion combine them. Every ball then sits within about
+1.5 m of a camera.
+
+Two things get harder, and both have answers:
+
+- **Parallax roughly doubles.** It grows with distance from the point under
+  the lens, so moving off-axis makes it worse: 14.5 mm worst-case from a
+  centred mount at 2.5 m, 28.9 mm from a corner mount. It is a systematic
+  bias rather than noise, so **correction stops being optional** — set
+  `height_mm` for each camera.
+- **The nadir can no longer be guessed.** With a straight-down camera the
+  software estimates the point beneath the lens from the image centre. A
+  tilted off-axis camera aims somewhere other than straight down, so that
+  guess can be a metre wrong, and a parallax correction that pulls towards
+  the wrong point is worse than none. Measure it with a plumb line from the
+  lens and set `nadir` per camera in `config/cameras.json`. It may well fall
+  outside the table — negative, or beyond the length — which is fine.
+
+### 3. Keep the light, mount cameras on the fixture itself
+
+Clamp two or three small cameras along the light bar looking straight down.
+They are already centred, nothing occludes them, and the fusion handles the
+overlap. The trade is a very wide lens at 0.8 m, heavy distortion at the
+edges, large parallax (correctable — you know the height precisely), and
+lamps sitting right beside the lens, so shield them.
+
+### The projector has the same problem
+
+A hanging light blocks a ceiling projector exactly as it blocks a camera.
+The four-corner keystone means the projector does **not** have to be square
+to the table, so mounting it off to one side works — but the fixture will
+throw a hard shadow across the cloth from any angled position, and no
+software fixes that. Two projectors from opposite corners cancel most of it.
+Taking the light down remains the clean answer.
+
 ## Would two cameras be better?
 
 Yes — but probably not for the reason you expect, and one of the obvious
@@ -105,7 +171,7 @@ numbers better.
 
 | | verdict |
 |---|---|
-| **2 × HD webcams** | **best value.** Cheap, high resolution, no USB bandwidth drama, and each can be placed purely for coverage. |
+| **2 × HD webcams** | **best value.** Cheap, high resolution, no USB bandwidth drama, and each can be placed purely for coverage — which matters most if a hanging light forces them off to the sides. |
 | **1 × Kinect v2 + 1 × HD webcam** | **good.** The Kinect's depth answers "is an arm over the cloth?" directly, and the webcam gives you a second, higher-resolution colour view. Uses the sensor you already own for the one thing it is uniquely good at. |
 | **2 × Kinect v2** | **avoid.** Each one wants its own USB 3 host controller — two on the same controller will not run — and they flood the bus. Their active infrared also illuminates the same scene, so the two depth streams interfere. All that for depth you do not need twice. |
 

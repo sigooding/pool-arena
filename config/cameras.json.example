@@ -1,18 +1,26 @@
 {
-  "_comment": "Optional. Only needed for more than one camera \u2014 a single camera works with no file at all. Each camera keeps its own calibration, so they need not match. Calibrate each one with: python -m poolarena calibrate --source <source> --calibration config/calibration-<name>.json",
+  "_comment": "Optional. Only needed for more than one camera, or to tell a single camera where it is. Calibrate each one with: python -m poolarena calibrate --source <source> --calibration config/calibration-<name>.json",
+  "_hanging_light": "If a light hangs over the table it will block a centred ceiling camera almost completely, so cameras go off to the sides. Then 'nadir' matters: it is the spot ON THE CLOTH directly under the lens, in table mm, and it can be outside the table (negative, or past the length). Measure it with a plumb line. Without it the parallax correction pulls towards the wrong point.",
   "cameras": [
     {
-      "name": "head",
-      "source": "kinect",
-      "calibration": "config/calibration-head.json",
-      "height_mm": 0,
-      "_height_mm": "measured from the cloth to the lens. Non-zero turns on parallax correction; see docs/HARDWARE.md before using it."
+      "name": "left",
+      "source": "cam:0",
+      "calibration": "config/calibration-left.json",
+      "height_mm": 2500,
+      "nadir": [
+        560,
+        -300
+      ]
     },
     {
-      "name": "foot",
+      "name": "right",
       "source": "cam:1",
-      "calibration": "config/calibration-foot.json",
-      "height_mm": 0
+      "calibration": "config/calibration-right.json",
+      "height_mm": 2500,
+      "nadir": [
+        1675,
+        1418
+      ]
     }
   ]
 }

@@ -230,8 +230,23 @@ def camera_specs(args) -> list[dict]:
         name = spec.replace(":", "") or f"cam{i}"
         calib = (Path(args.calibration) if len(specs) == 1
                  else CONFIG / f"calibration-{name}.json")
-        out.append({"name": name, "source": spec, "calibration": str(calib),
-                    "height_mm": getattr(args, "camera_height", 0.0) or 0.0})
+        entry = {"name": name, "source": spec, "calibration": str(calib),
+                 "height_mm": getattr(args, "camera_height", 0.0) or 0.0}
+        nadir = getattr(args, "camera_nadir", None)
+        if nadir and len(specs) > 1:
+            raise SystemExit(
+                "--camera-nadir sets one position, but you have "
+                f"{len(specs)} cameras and each sits somewhere different.\n"
+                "List them in config/cameras.json instead — see "
+                "config/cameras.json.example.")
+        if nadir:
+            try:
+                x, y = (float(v) for v in str(nadir).split(","))
+                entry["nadir"] = [x, y]
+            except ValueError:
+                raise SystemExit('--camera-nadir wants "X,Y" in table mm, '
+                                 f'got {nadir!r}')
+        out.append(entry)
     return out
 
 
@@ -421,6 +436,10 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--camera-height", type=float, default=0.0,
                    help="height of the camera above the cloth in mm. Enables "
                         "parallax correction; leave unset if unsure.")
+    r.add_argument("--camera-nadir",
+                   help="\"X,Y\" in table mm: the spot on the cloth directly "
+                        "under the lens. Needed when the camera is off to one "
+                        "side, which it must be if a light hangs over the table.")
     r.add_argument("--calibration", default=str(CONFIG / "calibration.json"))
     r.add_argument("--weights", help="YOLO weights, switches the detector")
     r.add_argument("--learn-cloth", action="store_true",

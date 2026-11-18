@@ -128,6 +128,13 @@ Overlay keys: `c` calibration, `b` draw tracked balls, `f` fullscreen,
 
 ## Hardware
 
+**If a light hangs over your table, read
+[docs/HARDWARE.md](docs/HARDWARE.md) before buying anything.** A traditional
+pool light shadows about 84% of the table's length from a ceiling camera, so
+a single overhead camera is not viable while it is there, and it blocks the
+projector too.
+
+
 An overhead camera, a PC, a short-throw projector on the ceiling. A Kinect v2
 works well: its 1080p colour stream is plenty, and its depth stream — useless
 for resolving balls — is ideal for spotting an arm over the cloth.

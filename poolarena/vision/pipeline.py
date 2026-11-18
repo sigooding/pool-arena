@@ -94,10 +94,16 @@ class VisionPipeline:
     def nadir(self) -> tuple[float, float]:
         """The point on the cloth directly below the camera, in table mm.
 
-        Estimated by mapping the centre of the camera image through the
-        calibration, which is exact for a camera pointing straight down and
-        close enough for one that is merely near-vertical. Override it in
-        config when the camera is well off to one side.
+        When not given, this is guessed by mapping the centre of the camera
+        image through the calibration. That guess is exact for a camera
+        pointing straight down and fair for one that is merely near-vertical.
+
+        **It is wrong for a camera mounted off to one side and tilted**, which
+        is the normal arrangement when a hanging pool light occupies the
+        middle of the ceiling: the image centre then lands wherever the camera
+        is AIMED, not underneath it, and the two can be a metre apart. Off-axis
+        mounting is also where parallax matters most, so set `nadir`
+        explicitly in that case — measure it with a plumb line from the lens.
         """
         if self._nadir is None:
             w = self.W / self.px_per_mm
