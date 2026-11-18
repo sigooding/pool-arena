@@ -116,6 +116,46 @@ mirror. Drag the overlay window onto it and press `f` for fullscreen.
 - Turn off every "eco", "dynamic contrast" and "auto brightness" mode. They
   change the picture mid-animation.
 
+## Cloth colour and the projected palette
+
+A projector adds light to a surface that reflects it selectively, so what a
+player sees is the projected colour **multiplied** by the cloth's reflectance.
+A palette that works on one table can be unreadable on another, which is why
+the cloth colour is a setting (`cloth` in `config/table.json`, or `--cloth`)
+and the overlay picks its palette from it.
+
+Measured as the CIE76 distance between a lit patch and the unlit cloth beside
+it, with each palette also required to be separable from the others:
+
+| cloth | unlit L* | best projected colours | avoid |
+|---|---|---|---|
+| pale blue `#8FB7D9` | 34 | pure green, magenta, spring `#00FFCC`, amber, rose | pale pastels, mid-blue (reads as the cloth) |
+| powder blue `#6E9BC5` | 28 | magenta, green, azure, amber | red, orange, hot pink |
+| tournament green `#1B6E54` | 16 | lime, yellow, white, amber | **red (nearly invisible)**, orange, pink |
+
+![The same scene composited onto each cloth with that model](cloth-palette.png)
+
+Two things follow that are worth knowing before you buy a projector.
+
+**Pale cloth renders colour better than green.** A desaturated surface
+reflects broadly, so hues come back faithfully: the best colours on pale blue
+separate by ~80 ΔE against ~50 on tournament green. Every semantic colour the
+games use clears the visibility floor on pale blue unchanged; on green, half
+of them have to be substituted.
+
+**Pale cloth has a much worse black level.** Unlit pale blue sits around
+L* 34 against green's 16, and a projector cannot subtract light. "Off" is
+never dark, so the dynamic range you have to play with is smaller than the
+colour figures suggest, and **controlling ambient light matters more than
+anything else you can do in software**. Dim the room lights and the same
+effects go from washed out to vivid.
+
+A consequence on green cloth specifically: green reflects almost no red, so
+**no hue can read as an alarm there** — a magenta foul flash comes back navy.
+The overlay therefore uses a near-white strobe for fouls on green and carries
+the meaning in the flash pattern. On blue cloth red and rose work properly and
+are used as they were intended.
+
 ## Lighting
 
 The one thing that will cost you a weekend if you get it wrong.

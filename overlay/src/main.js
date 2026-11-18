@@ -9,6 +9,7 @@
 import { View } from './view.js';
 import { makeEffect } from './effects.js';
 import { setBallSet } from './balls.js';
+import { setCloth } from './cloth.js';
 
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
@@ -95,6 +96,7 @@ function handle(msg) {
   switch (msg.type) {
     case 'table':
       setBallSet(msg.ball_set);
+      if (msg.table && msg.table.cloth) setCloth(msg.table.cloth);
       scene.table = { ...DEFAULT_TABLE, ...msg.table };
       scene.pocketMap = null;
       if (msg.table.pockets) scene.pocketMap = msg.table.pockets;

@@ -55,6 +55,10 @@ colour-coded shot feed:
   visits and a frame the table wrongly called as won. Per-player +/- buttons
   cover the other half: undo restores the old score, but only you know the
   right one.
+- **A palette computed for your cloth.** A projector's light is multiplied by
+  what the cloth reflects, so red is nearly invisible on green and fine on
+  pale blue. Set `cloth` in `config/table.json` (or `--cloth "#8FB7D9"`) and
+  the overlay picks a palette measured against that surface.
 - **88 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 

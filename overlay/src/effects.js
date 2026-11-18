@@ -5,6 +5,10 @@
 // pastel disappears on green. Black is the only "off" colour a projector has,
 // so effects are drawn additively on a black canvas.
 
+import { adapt, palette as clothPalette } from './cloth.js';
+
+// Fallback palettes, used before the server has said what the cloth is.
+// Once it has, cloth.js supplies a set computed for that surface.
 export const PALETTES = {
   fire:     ['#fff3b0', '#ffb703', '#fb8500', '#e63946'],
   gold:     ['#fffbe6', '#ffe066', '#ffc300', '#ff8f00'],
@@ -16,6 +20,7 @@ export const PALETTES = {
 };
 
 const pick = (arr, i) => arr[(i | 0) % arr.length];
+const paletteFor = (name) => clothPalette(name) || PALETTES[name] || PALETTES.fire;
 const rand = (a, b) => a + Math.random() * (b - a);
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 const clamp01 = (t) => Math.max(0, Math.min(1, t));
@@ -41,7 +46,7 @@ export class Effect {
 class Particles {
   constructor() { this.list = []; }
   burst(x, y, n, opts = {}) {
-    const palette = PALETTES[opts.palette] || PALETTES.fire;
+    const palette = paletteFor(opts.palette);
     for (let i = 0; i < n; i++) {
       const a = opts.angle !== undefined ? opts.angle + rand(-opts.spread, opts.spread)
                                          : rand(0, Math.PI * 2);
@@ -95,7 +100,7 @@ export class PocketGlow extends Effect {
     this.layer = args.layer || 'guide';
     const pockets = scene.pockets();
     this.pos = args.pocket ? pockets[args.pocket] : [args.x, args.y];
-    this.color = args.color || '#ffc24a';
+    this.color = adapt(args.color || '#ffc24a');
     this.intensity = args.intensity ?? 1;
   }
   draw(ctx, view) {
@@ -214,7 +219,7 @@ export class Explosion extends Effect {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = (1 - this.p * 2) * 0.8;
-      ctx.strokeStyle = pick(PALETTES[this.args.palette] || PALETTES.fire, 1);
+      ctx.strokeStyle = pick(paletteFor(this.args.palette), 1);
       ctx.lineWidth = Math.max(1, view.mm(26 * (1 - this.p * 2)));
       view.circlePoly(ctx, x, y, r);
       ctx.stroke();
@@ -289,7 +294,7 @@ export class TableFlash extends Effect {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.5 * k;
-    ctx.fillStyle = this.args.color || '#ff2d55';
+    ctx.fillStyle = adapt(this.args.color || '#ff2d55');
     view.pathPoly(ctx, [[0, 0], [view.L, 0], [view.L, view.W], [0, view.W]]);
     ctx.fill();
     ctx.restore();
@@ -316,7 +321,7 @@ export class HighlightBalls extends Effect {
     this.layer = 'guide';
     this.persist = true;
     this.numbers = args.balls || [];
-    this.color = args.color || '#4ade80';
+    this.color = adapt(args.color || '#4ade80');
     this.style = args.style || 'ring';
   }
   draw(ctx, view, scene) {
@@ -433,7 +438,7 @@ export class Trajectory extends Effect {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.85 * (1 - Math.max(0, this.p - 0.6) / 0.4);
-    ctx.strokeStyle = this.args.color || '#22d3ee';
+    ctx.strokeStyle = adapt(this.args.color || '#22d3ee');
     ctx.lineWidth = Math.max(2, view.mm(this.args.width || 16));
     ctx.lineJoin = 'round';
     if (this.args.style === 'dashed') {
@@ -455,14 +460,15 @@ function drawZone(ctx, view, z, t, alphaScale = 1) {
   const [sx, sy] = view.project(z.x, z.y);
   const R = view.mm(z.r || 150);
   const g = ctx.createRadialGradient(sx, sy, R * 0.15, sx, sy, R);
-  g.addColorStop(0, (z.color || '#38bdf8') + 'cc');
-  g.addColorStop(0.7, (z.color || '#38bdf8') + '33');
+  const zc = adapt(z.color || '#38bdf8');
+  g.addColorStop(0, zc + 'cc');
+  g.addColorStop(0.7, zc + '33');
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.globalAlpha = (spent ? 0.12 : 0.55 * pulse) * alphaScale;
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.fill();
   ctx.globalAlpha = (spent ? 0.2 : 0.95) * alphaScale;
-  ctx.strokeStyle = z.color || '#38bdf8';
+  ctx.strokeStyle = zc;
   ctx.lineWidth = Math.max(2, view.mm(10));
   if (z.shape === 'rect') {
     view.pathPoly(ctx, [
@@ -474,7 +480,7 @@ function drawZone(ctx, view, z, t, alphaScale = 1) {
   ctx.stroke();
   if (z.label) {
     ctx.globalAlpha = (spent ? 0.2 : 1) * alphaScale;
-    ctx.fillStyle = z.color || '#38bdf8';
+    ctx.fillStyle = zc;
     ctx.font = `bold ${Math.round(view.mm(z.label.length > 3 ? 46 : 92))}px system-ui, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(z.label, sx, sy);
@@ -615,7 +621,8 @@ export class Banner extends Effect {
   constructor(args) { super(args); this.layer = 'hud'; }
   draw(ctx, view, scene) {
     const a = this.args;
-    const tone = a.tone === 'bad' ? '#ff4d6d' : a.tone === 'good' ? '#4ade80' : '#e0fbfc';
+    const tone = adapt(a.tone === 'bad' ? '#ff4d6d'
+      : a.tone === 'good' ? '#4ade80' : '#e0fbfc');
     const k = this.p < 0.15 ? this.p / 0.15 : this.p > 0.82 ? (1 - this.p) / 0.18 : 1;
     const cx = scene.table.length / 2;
     const cy = scene.table.width / 2;
@@ -654,7 +661,7 @@ export class Spotlight extends Effect {
     ctx.font = `800 ${Math.round(view.mm(74))}px system-ui, sans-serif`;
     ctx.lineWidth = Math.max(2, view.mm(7));
     ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-    ctx.fillStyle = this.args.color || '#f59e0b';
+    ctx.fillStyle = adapt(this.args.color || '#f59e0b');
     ctx.strokeText(this.args.text || '', sx, sy);
     ctx.fillText(this.args.text || '', sx, sy);
     ctx.restore();

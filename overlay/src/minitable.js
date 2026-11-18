@@ -6,6 +6,14 @@
 
 import { CLOTH, CLOTH_DARK, RAIL, drawBall } from './balls.js';
 
+/** Darken or lighten a hex colour, for the cloth's vignette. */
+function shade(hex, amount) {
+  const n = hex.replace('#', '');
+  const v = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16));
+  return '#' + v.map((c) => Math.max(0, Math.min(255, Math.round(c * (1 + amount))))
+    .toString(16).padStart(2, '0')).join('');
+}
+
 export class MiniTable {
   constructor(canvas) {
     this.canvas = canvas;
@@ -32,6 +40,7 @@ export class MiniTable {
 
   setTable(t) {
     this.table = { ...this.table, ...t };
+    if (t && t.cloth) this.cloth = t.cloth;
     if (t && t.pockets) this.pockets = t.pockets;
     this.resize();
   }
@@ -94,9 +103,11 @@ export class MiniTable {
     ctx.clearRect(0, 0, w, h);
 
     // cloth, with a little vignette so the balls sit on something
+    // Show the real cloth, so the tablet looks like the table in front of you.
+    const base = this.cloth || CLOTH;
     const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.1, w / 2, h / 2, w * 0.72);
-    g.addColorStop(0, CLOTH);
-    g.addColorStop(1, CLOTH_DARK);
+    g.addColorStop(0, base);
+    g.addColorStop(1, this.cloth ? shade(base, -0.22) : CLOTH_DARK);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 

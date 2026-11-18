@@ -45,11 +45,14 @@ def load_table(args) -> Table:
         t = Table(size=cfg.get("size", "8ft"),
                   length=cfg.get("length", 0), width=cfg.get("width", 0),
                   ball_radius=cfg.get("ball_radius", 28.6),
-                  pocket_capture=cfg.get("pocket_capture", 70.0))
+                  pocket_capture=cfg.get("pocket_capture", 70.0),
+                  cloth=cfg.get("cloth", "#1B6E54"))
     else:
         t = Table(size=args.size)
     if getattr(args, "size", None) and args.size != t.size and not args.config:
         t = Table(size=args.size)
+    if getattr(args, "cloth", None):
+        t.cloth = args.cloth
     return t
 
 
@@ -198,6 +201,7 @@ def cmd_run(args) -> int:
     pipeline = VisionPipeline(table, calib, detector)
     print(f"  source      {source.name}")
     print(f"  balls       {ball_set.title}")
+    print(f"  cloth       {table.cloth}")
     print(f"  game        {args.game}\n")
 
     engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
@@ -302,6 +306,9 @@ def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="table config json")
     common.add_argument("--size", default="8ft", help="7ft|8ft|8ft-pro|9ft|10ft|snooker")
+    common.add_argument("--cloth", default=None,
+                        help="cloth colour as hex, e.g. #8FB7D9 for pale blue; "
+                             "the projected palette is chosen from it")
     common.add_argument("--ball-set", default=None,
                         help="american (numbered 1-15) | english (reds and yellows)")
     common.add_argument("--port", type=int, default=8777)

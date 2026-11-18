@@ -39,6 +39,10 @@ class Table:
     ball_radius: float = 28.6
     corner_mouth: float = 115.0   # pocket mouth width, corner
     side_mouth: float = 130.0     # pocket mouth width, side
+    #: cloth colour as a hex string. The overlay picks its projected palette
+    #: from this, because a projector multiplies its light by what the cloth
+    #: reflects — red is almost invisible on green and fine on pale blue.
+    cloth: str = "#1B6E54"
     pocket_capture: float = 70.0  # a ball centre within this of a pocket mouth counts as pocketed
 
     def __post_init__(self) -> None:
@@ -114,6 +118,7 @@ class Table:
             "pockets": {k: list(v) for k, v in self.pockets().items()},
             "corner_mouth": self.corner_mouth,
             "side_mouth": self.side_mouth,
+            "cloth": self.cloth,
             "foot_spot": list(self.foot_spot),
             "head_spot": list(self.head_spot),
             "head_string": self.head_string,
