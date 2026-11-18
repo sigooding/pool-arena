@@ -39,10 +39,8 @@ class PositionDrill(Game):
         return [Effect("target_zone", {"zone": self.zone.to_json(), "transition": "sweep"},
                        layer="guide")]
 
-    def on_start(self):
-        return super().on_start() + [
-            Effect("banner", {"text": "POSITION DRILL",
-                              "subtitle": f"{self.shots} shots"}, layer="hud")]
+    def start_note(self):
+        return f"{self.description} — {self.shots} shots"
 
     def on_turn_start(self, state):
         fx = self._new_target(state) if self.zone is None else [

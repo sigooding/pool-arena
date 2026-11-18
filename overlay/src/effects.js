@@ -28,16 +28,35 @@ const clamp01 = (t) => Math.max(0, Math.min(1, t));
 export class Effect {
   constructor(args = {}) {
     this.args = args;
+    //: seconds to wait before this starts. Used to queue banners, which
+    //: are unreadable stacked on top of one another.
+    this.delay = 0;
     this.t = 0;
-    this.dur = (args.duration ?? this.defaultDuration ?? 1000) / 1000;
     this.persist = !!args.persist || args.duration === 0;
     this.done = false;
     this.layer = 'fx';
   }
+  /**
+   * How long this effect runs, in seconds.
+   *
+   * A getter, not a field set in the constructor, and that is load-bearing:
+   * subclasses declare `defaultDuration` as a class field, and class fields
+   * are installed *after* super() returns. Reading it during the base
+   * constructor got `undefined` every time, so for a long while every effect
+   * in this file — a 400ms table flash, a 4s firework — ran for exactly one
+   * second. Deferring the read to first use is what makes those numbers mean
+   * anything.
+   */
+  get dur() { return (this.args.duration ?? this.defaultDuration ?? 1000) / 1000; }
   get p() { return this.persist ? 1 : clamp01(this.t / this.dur); }
+  get waiting() { return this.delay > 0; }
   update(dt) {
+    if (this.delay > 0) { this.delay -= dt; return; }
     this.t += dt;
-    if (!this.persist && this.t >= this.dur) this.done = true;
+    // dur 0 means "until something clears it", same as persist. Subclasses
+    // that want it say so outright, but don't let a 0 here spin an effect
+    // straight to done on its first frame.
+    if (!this.persist && this.dur > 0 && this.t >= this.dur) this.done = true;
   }
   draw() {}
 }
@@ -620,6 +639,7 @@ export class Banner extends Effect {
   defaultDuration = 2400;
   constructor(args) { super(args); this.layer = 'hud'; }
   draw(ctx, view, scene) {
+    if (this.waiting) return;
     const a = this.args;
     const tone = adapt(a.tone === 'bad' ? '#ff4d6d'
       : a.tone === 'good' ? '#4ade80' : '#e0fbfc');

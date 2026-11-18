@@ -39,11 +39,8 @@ class Hotspots(Game):
         return [Effect("zones", {"zones": [z.to_json() for z in self.zones],
                                  "transition": "bloom"}, layer="guide")]
 
-    def on_start(self):
-        return super().on_start() + [
-            Effect("banner", {"text": "HOTSPOTS",
-                              "subtitle": f"first to {self.target_score}"}, layer="hud")
-        ]
+    def start_note(self):
+        return f"{self.description} — first to {self.target_score}"
 
     def on_turn_start(self, state):
         fx = self._relight(state) if not self.zones else [

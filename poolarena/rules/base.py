@@ -84,9 +84,18 @@ class Game(ABC):
         self.log: list[str] = []
 
     # --- hooks -------------------------------------------------------------
+    def start_note(self) -> str:
+        """The line under the title when a game begins.
+
+        A hook rather than a second banner: two banners in one batch land on
+        top of each other and neither can be read.
+        """
+        return self.description
+
     def on_start(self) -> list[Effect]:
         """Effects to play when the game is racked and ready."""
-        return [Effect("banner", {"text": self.title, "subtitle": self.description}, layer="hud")]
+        return [Effect("banner", {"text": self.title.upper(),
+                                  "subtitle": self.start_note()}, layer="hud")]
 
     def on_turn_start(self, state: TableState) -> list[Effect]:
         """Effects at the start of a turn: aiming guides, target highlights."""

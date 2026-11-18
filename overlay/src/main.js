@@ -7,7 +7,7 @@
 // like it is lighting the ball up.
 
 import { View } from './view.js';
-import { makeEffect } from './effects.js';
+import { makeEffect, Banner } from './effects.js';
 import { setBallSet } from './balls.js';
 import { setCloth } from './cloth.js';
 import { Attract } from './attract.js';
@@ -184,6 +184,7 @@ function applyBatch(list, clear) {
   for (const e of list) {
     const fx = makeEffect(e.name, e.args, scene);
     if (!fx) { console.warn('unknown effect', e.name); continue; }
+    queueBanner(fx);
     made.push(fx);
   }
   const replacing = new Set(made.filter((f) => f.persist).map((f) => f.layer));
@@ -197,7 +198,27 @@ function applyBatch(list, clear) {
 function spawn(e) {
   const fx = makeEffect(e.name, e.args, scene);
   if (!fx) { console.warn('unknown effect', e.name); return; }
+  queueBanner(fx);
   effects.push(fx);
+}
+
+/**
+ * Banners read one at a time or not at all.
+ *
+ * Two of them drawn at the same spot interleave into something neither
+ * legible nor obviously broken — the words are all there, just on top of
+ * each other. A game emitting two in one batch is an easy mistake to make,
+ * so rather than rely on every game being careful, a new banner waits for
+ * the ones already queued to finish.
+ */
+function queueBanner(fx) {
+  if (!(fx instanceof Banner)) return;
+  let wait = 0;
+  for (const other of effects) {
+    if (!(other instanceof Banner) || other.done) continue;
+    wait = Math.max(wait, other.delay + Math.max(0, other.dur - other.t));
+  }
+  fx.delay = wait;
 }
 
 // --- trails ---------------------------------------------------------------
