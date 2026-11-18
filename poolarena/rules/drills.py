@@ -19,6 +19,7 @@ class PositionDrill(Game):
     min_players = 1
     max_players = 4
     needs_numbered_balls = False
+    needs_projector = True
 
     def __init__(self, *a, **kw) -> None:
         super().__init__(*a, **kw)

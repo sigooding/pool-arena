@@ -47,6 +47,12 @@ class Game(ABC):
     # it playable with an English reds-and-yellows set.
     needs_numbered_balls: bool = True
 
+    #: True when the game's guides are the game — zones to roll through, a
+    #: nominated pocket, a ring to stop the cue ball in. Without a projector
+    #: these are still playable, but the player has to read them off the
+    #: tablet instead of off the cloth.
+    needs_projector: bool = False
+
     @classmethod
     def supports(cls, ball_set: BallSet) -> bool:
         return ball_set.has_numbers or not cls.needs_numbered_balls
@@ -183,6 +189,7 @@ def available(ball_set: BallSet | None = None) -> list[dict[str, Any]]:
         {"name": c.name, "title": c.title, "description": c.describe(bs),
          "min_players": c.min_players, "max_players": c.max_players,
          "supported": c.supports(bs),
-         "needs_numbered_balls": c.needs_numbered_balls}
+         "needs_numbered_balls": c.needs_numbered_balls,
+         "needs_projector": c.needs_projector}
         for c in sorted(_REGISTRY.values(), key=lambda c: c.title)
     ]

@@ -37,15 +37,18 @@ function route(msg) {
   switch (msg.type) {
     case 'games':
       games = msg.games;
+      if (msg.projector !== undefined) hasProjector = msg.projector;
       if (msg.ball_set) applyBallSet(msg.ball_set);
       renderGames();
       break;
     case 'table':
       if (msg.ball_set) applyBallSet(msg.ball_set);
+      if (msg.projector !== undefined) hasProjector = msg.projector;
       mini.setTable(msg.table);
       break;
     case 'state':      mini.setBalls(msg.state.balls || []); break;
     case 'scoreboard': board = msg.scoreboard; render(); break;
+    case 'effects':    applyGuides(msg); break;
     case 'shot':       break;      // the feed comes from history, below
     case 'history':    setFeed(msg.history || []); break;
     case 'error':      showAlert(msg.error); break;
@@ -54,6 +57,30 @@ function route(msg) {
       break;
     default: break;
   }
+}
+
+// Mirror the projector's persistent guides onto the table view. Without a
+// projector this is the only place the nominated pocket or the live zones
+// appear, so Pocket Roulette and Hotspots remain playable — you glance at
+// the tablet instead of at the cloth.
+let guides = { zones: [], pockets: [], marked: [], aim: null };
+
+function applyGuides(msg) {
+  if (msg.clear === 'all' || msg.clear === 'guide') {
+    guides = { zones: [], pockets: [], marked: [], aim: null };
+  }
+  for (const e of msg.effects || []) {
+    const a = e.args || {};
+    if (e.name === 'zones') guides.zones = a.zones || [];
+    else if (e.name === 'target_zone' && a.zone) guides.zones = [a.zone];
+    else if (e.name === 'pocket_glow' && a.persist && a.pocket) {
+      guides.pockets = [{ pocket: a.pocket, color: a.color }];
+    } else if (e.name === 'highlight_balls') guides.marked = a.balls || [];
+    else if (e.name === 'aim_line' || e.name === 'aim_assist') {
+      guides.aim = { cue: a.cue, target: a.target, pocket: a.pocket };
+    }
+  }
+  mini.setGuides(guides);
 }
 
 function setState(text, live) {
@@ -72,6 +99,7 @@ function showAlert(text) {
 
 // --- game picker ----------------------------------------------------------
 let ballSetInfo = { name: 'american', title: 'American', has_numbers: true };
+let hasProjector = true;
 
 function applyBallSet(bs) {
   ballSetInfo = bs;
@@ -91,7 +119,8 @@ function renderGames() {
     b.setAttribute('aria-pressed', String(picked === g.name));
     b.innerHTML = `<b></b><i></i>`;
     b.querySelector('b').textContent = g.title;
-    b.querySelector('i').textContent = g.description;
+    b.querySelector('i').textContent = g.description
+      + (g.needs_projector && !hasProjector ? ' — guides shown here' : '');
     if (!b.disabled) b.onclick = () => pick(g.name);
     wrap.appendChild(b);
   }

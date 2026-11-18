@@ -134,6 +134,29 @@ overlap. The trade is a very wide lens at 0.8 m, heavy distortion at the
 edges, large parallax (correctable — you know the height precisely), and
 lamps sitting right beside the lens, so shield them.
 
+### Shadows on the cloth, and what a YOLO model does about them
+
+Two different shadow problems get confused, and only one of them is a vision
+problem at all.
+
+**Projector shadows are not fixable by any detector.** The projector is an
+output. A player leaning over the table blocks light that then never reaches
+the cloth, and no model — YOLO or otherwise — can recover light that was not
+emitted. The only remedies are physical: mount the projector higher, use two
+from opposite corners, or accept it.
+
+**Camera-side shadows are a vision problem**, and the detector already deals
+with most of them. A shadow changes how much light fell on the cloth and
+barely touches its colour, so the cloth model compares each pixel against
+its surroundings **in chroma only**, throwing lightness away. Measured on a
+synthetic frame with a hard-edged shadow across half the table, comparing
+full Lab distance found 4 balls out of 8; comparing chroma finds 7 or 8.
+
+A trained YOLO model would be more robust still — it learns what a ball
+looks like rather than thresholding colour, so shading bothers it far less —
+but on shadows specifically the gap is smaller than it used to be, and it
+costs a few gigabytes of PyTorch to close. Tune the colour detector first.
+
 ### The projector has the same problem
 
 A hanging light blocks a ceiling projector exactly as it blocks a camera.

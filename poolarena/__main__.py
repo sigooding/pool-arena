@@ -137,6 +137,7 @@ def cmd_demo(args) -> int:
     hub = Hub()
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
                     idle_after=args.idle_after,
+                    projector=not args.no_projector,
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -281,6 +282,7 @@ def cmd_run(args) -> int:
     hub = Hub()
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
                     idle_after=args.idle_after,
+                    projector=not args.no_projector,
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -398,6 +400,9 @@ def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="table config json")
     common.add_argument("--size", default="8ft", help="7ft|8ft|8ft-pro|9ft|10ft|snooker")
+    common.add_argument("--no-projector", action="store_true",
+                        help="scoring only. The guides are drawn on the "
+                             "scoreboard's table view instead of the cloth.")
     common.add_argument("--idle-after", type=float, default=90.0,
                         help="seconds of a still, empty table before the "
                              "attract mode starts; 0 turns it off")

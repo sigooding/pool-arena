@@ -123,3 +123,42 @@ def test_solids_and_stripes_are_distinguished():
     assert matched[5].kind.value == "solid"
     assert matched[11].kind.value == "stripe"
     assert matched[12].kind.value == "stripe"
+
+
+def shadowed(frame, darkness=0.55, soft=False):
+    """A band of shadow across the cloth, as a player standing at the rail
+    under a side light would cast."""
+    out = frame.copy().astype(np.float32)
+    m = np.zeros(frame.shape[:2], np.float32)
+    cv2.fillPoly(m, [np.array([[900, 0], [1500, 0], [1750, 1080], [1150, 1080]],
+                              np.int32)], 1.0)
+    if soft:
+        m = cv2.GaussianBlur(m, (0, 0), 60)
+    return np.clip(out * (1.0 - m[:, :, None] * darkness), 0, 255).astype(np.uint8)
+
+
+def count_found(frame, **kw):
+    calib = Calibration.from_corners(IMAGE_CORNERS, TABLE)
+    pipe = VisionPipeline(TABLE, calib, ColorBallDetector(ball_px=28.6, **kw))
+    hit = set()
+    for b in pipe.process(frame).balls:
+        num, mm = min(LAYOUT.items(), key=lambda kv: math.dist((b.x, b.y), kv[1]))
+        if math.dist((b.x, b.y), mm) < 45:
+            hit.add(num)
+    return len(hit)
+
+
+def test_a_shadow_across_the_cloth_does_not_lose_the_balls():
+    """A shadow changes how much light fell, not what colour the cloth is.
+    An earlier version compared full Lab distance, counted the shadow's edge
+    as strongly as a ball, and lost half the table."""
+    for soft in (False, True):
+        n = count_found(shadowed(synthetic_frame(), 0.55, soft))
+        assert n >= len(LAYOUT) - 2, f"{n}/{len(LAYOUT)} under a {'soft' if soft else 'hard'} shadow"
+
+
+def test_shadows_cost_less_than_they_used_to():
+    frame = shadowed(synthetic_frame(), 0.55, soft=False)
+    chroma = count_found(frame)
+    lightness = count_found(frame, local_threshold=26.0, local_dark=1e9)
+    assert chroma >= lightness

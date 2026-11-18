@@ -56,7 +56,7 @@ class ColorBallDetector(BallDetector):
                  min_fill: float = 0.45, white_v: int = 165, white_s: int = 70,
                  ball_set: str = "american", normalise_light: bool = True,
                  cloth_model: str = "local", local_sigma: float = 100.0,
-                 local_threshold: float = 26.0) -> None:
+                 local_threshold: float = 12.0, local_dark: float = 42.0) -> None:
         import cv2
         self.cv2 = cv2
         self.ball_set = ball_set
@@ -64,6 +64,7 @@ class ColorBallDetector(BallDetector):
         self.cloth_model = cloth_model
         self.local_sigma = local_sigma
         self.local_threshold = local_threshold
+        self.local_dark = local_dark
         self.ball_px = ball_px
         self.cloth_tolerance = cloth_tolerance
         self.min_fill = min_fill
@@ -114,6 +115,19 @@ class ColorBallDetector(BallDetector):
         problem: over most of the cloth the blur IS the cloth, so lighting
         gradients cancel and what stands out is a ball.
 
+        The comparison is in CHROMA only — the a and b of Lab, with lightness
+        thrown away. That distinction matters more than the local background
+        does. A shadow, whether from a player or from the light fitting,
+        changes how much light fell on the cloth and barely touches its
+        colour; a ball changes the colour outright. Measuring the full Lab
+        distance counts the shadow's edge as strongly as a ball and the
+        detector starts finding the shadow: on a hard-edged shadow it dropped
+        from 8 balls out of 8 to 4. Ignoring lightness holds it at 7 or 8.
+
+        A black ball is the exception, being a lightness story rather than a
+        colour one, so a blunt darker-than-its-surroundings test runs
+        alongside.
+
         The blur has to be wide relative to a ball, or a rack biases its own
         background and the balls in the middle of it vanish. At the default
         sigma the blur spans several ball widths.
@@ -121,8 +135,10 @@ class ColorBallDetector(BallDetector):
         cv2 = self.cv2
         lab = cv2.cvtColor(warped, cv2.COLOR_BGR2LAB).astype(np.float32)
         bg = cv2.GaussianBlur(lab, (0, 0), self.local_sigma)
-        diff = np.linalg.norm(lab - bg, axis=2)
-        mask = (diff > self.local_threshold).astype(np.uint8) * 255
+        chroma = np.linalg.norm(lab[:, :, 1:] - bg[:, :, 1:], axis=2)
+        darker = bg[:, :, 0] - lab[:, :, 0]
+        mask = ((chroma > self.local_threshold)
+                | (darker > self.local_dark)).astype(np.uint8) * 255
         k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k)
         return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k)
@@ -327,5 +343,6 @@ def build_detector(cfg: dict[str, Any]) -> BallDetector:
         normalise_light=cfg.get("normalise_light", True),
         cloth_model=cfg.get("cloth_model", "local"),
         local_sigma=cfg.get("local_sigma", 100.0),
-        local_threshold=cfg.get("local_threshold", 26.0),
+        local_threshold=cfg.get("local_threshold", 12.0),
+        local_dark=cfg.get("local_dark", 42.0),
     )

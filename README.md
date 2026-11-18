@@ -76,7 +76,11 @@ colour-coded shot feed:
   millimetres. It buys seeing past a player leaning over the cloth, not
   better numbers — see [docs/HARDWARE.md](docs/HARDWARE.md) for which
   combination is worth buying and which to avoid.
-- **136 tests** covering geometry, shot detection, every rule set and the full
+- **Scoring without a projector.** `--no-projector` and the guides that
+  would have been on the cloth — live zones, the nominated pocket, aiming
+  lines — are drawn on the scoreboard's table view instead, so the
+  projection-native games stay playable.
+- **138 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

@@ -28,6 +28,10 @@ class Engine:
     table: Table
     hub: Hub
     ball_set: BallSet = AMERICAN
+    #: False when nothing is projecting. The engine behaves identically —
+    #: the scoreboard draws the guides instead — but the UI stops suggesting
+    #: games whose guides belong on the cloth.
+    projector: bool = True
     game: Game | None = None
     log_path: Path | None = None
     detector: ShotDetector = field(init=False)
@@ -93,7 +97,8 @@ class Engine:
         self._redo.clear()
         self._awaiting_turn_fx = True
         self.hub.broadcast({"type": "table", "table": self.table.to_json(),
-                            "ball_set": self.ball_set.to_json()}, sticky_key="table")
+                            "ball_set": self.ball_set.to_json(),
+                            "projector": self.projector}, sticky_key="table")
         # Wipe every persistent effect before the new game draws anything. A new
         # game's opening batch may contain no persistent guides at all (8-ball
         # shows nothing until groups are assigned), so without an explicit clear
@@ -133,7 +138,14 @@ class Engine:
                                "effects": [e.to_json() for e in effects]}
         if clear:
             msg["clear"] = clear
-        self.hub.broadcast(msg)
+        # A batch carrying persistent guides is replayed to anyone who
+        # connects later. Without that, a scoreboard or overlay opened in the
+        # middle of a frame shows no zones and no nominated pocket until the
+        # next shot ends — and with no projector attached, those guides only
+        # exist on the scoreboard, so the game would look broken.
+        sticky = any(e.args.get("persist") or e.args.get("duration") == 0
+                     for e in effects)
+        self.hub.broadcast(msg, sticky_key="guides" if sticky else None)
 
     # --- the main loop -----------------------------------------------------
     def feed(self, state: TableState) -> ShotWindow | None:
@@ -304,7 +316,8 @@ class Engine:
 
     def _after_rewind(self, message: str) -> None:
         self.hub.broadcast({"type": "table", "table": self.table.to_json(),
-                            "ball_set": self.ball_set.to_json()}, sticky_key="table")
+                            "ball_set": self.ball_set.to_json(),
+                            "projector": self.projector}, sticky_key="table")
         # Clear the cloth: the effects on it belong to a shot that no longer
         # counts, and leaving a win banner up after undoing the winning shot
         # would be worse than showing nothing.
@@ -335,7 +348,8 @@ class Engine:
                                     "context": "start_game"})
         elif kind == "games":
             self.hub.broadcast({"type": "games", "games": available(self.ball_set),
-                                "ball_set": self.ball_set.to_json()})
+                                "ball_set": self.ball_set.to_json(),
+                                "projector": self.projector})
         elif kind == "call_pocket" and self.game and hasattr(self.game, "call"):
             self.game.call(msg["pocket"])          # type: ignore[attr-defined]
             self.emit_effects([Effect("pocket_glow", {"pocket": msg["pocket"],

@@ -23,6 +23,10 @@ export class MiniTable {
     this.pockets = null;
     this.highlight = new Set();     // ball numbers to ring
     this.accent = '#F2B705';
+    // Guides mirrored from the projector stream. With no projector these are
+    // the only place a player can see which pocket they have been given or
+    // which zones are live, so the games that depend on them stay playable.
+    this.guides = { zones: [], pockets: [], marked: [], aim: null };
     this.ghosts = [];               // recently pocketed, fading out
     this._raf = null;
     // Measure whenever the box actually changes rather than once at startup:
@@ -96,6 +100,85 @@ export class MiniTable {
 
   pos(x, y) { return [x * this.scale, y * this.scale]; }
 
+  setGuides(g) {
+    this.guides = { zones: [], pockets: [], marked: [], aim: null, ...g };
+    this.draw();
+  }
+
+  drawGuides(ctx) {
+    const g = this.guides;
+    const P = this.pockets || {};
+    const t = performance.now() / 1000;
+
+    for (const z of g.zones || []) {
+      const [zx, zy] = this.pos(z.x, z.y);
+      const r = Math.max(6, this.scale * (z.r || 150));
+      const spent = z.state && z.state !== 'active';
+      ctx.save();
+      ctx.globalAlpha = spent ? 0.2 : 0.55;
+      const grad = ctx.createRadialGradient(zx, zy, r * 0.2, zx, zy, r);
+      grad.addColorStop(0, (z.color || '#38bdf8') + 'cc');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(zx, zy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = spent ? 0.3 : 1;
+      ctx.strokeStyle = z.color || '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(zx, zy, r, 0, Math.PI * 2); ctx.stroke();
+      if (z.label) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `700 ${Math.max(10, Math.round(r * 0.8))}px system-ui`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(z.label, zx, zy);
+      }
+      ctx.restore();
+    }
+
+    // The nominated pocket, pulsing so it is unmissable from the rail.
+    for (const p of g.pockets || []) {
+      const pos = P[p.pocket];
+      if (!pos) continue;
+      const [px, py] = this.pos(pos[0], pos[1]);
+      const beat = 0.6 + 0.4 * Math.sin(t * 4);
+      ctx.save();
+      ctx.globalAlpha = beat;
+      ctx.strokeStyle = p.color || '#22d3ee';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(10, this.scale * 150), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (g.aim && g.aim.cue && g.aim.target) {
+      const a = this.pos(g.aim.cue[0], g.aim.cue[1]);
+      const b = this.pos(g.aim.target[0], g.aim.target[1]);
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.restore();
+      if (g.aim.pocket && P[g.aim.pocket]) {
+        const c = this.pos(P[g.aim.pocket][0], P[g.aim.pocket][1]);
+        ctx.save();
+        ctx.strokeStyle = '#ffd166';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    if ((g.zones || []).length || (g.pockets || []).length) {
+      // Keep the pulse alive without a render loop when nothing else moves.
+      if (!this._pulse) {
+        this._pulse = setInterval(() => this.draw(), 90);
+      }
+    } else if (this._pulse) {
+      clearInterval(this._pulse);
+      this._pulse = null;
+    }
+  }
+
   draw() {
     const ctx = this.ctx;
     const { w, h } = this;
@@ -152,6 +235,8 @@ export class MiniTable {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
+
+    this.drawGuides(ctx);
 
     // balls that just dropped, fading
     const now = performance.now();
