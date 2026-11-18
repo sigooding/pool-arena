@@ -77,6 +77,88 @@ to be told apart *and* a stripe-versus-glare judgement on every ball. Run with
 The trade is that no camera can tell one red from another — so 9-ball and
 cut-throat are unavailable, by design, rather than being scored by guesswork.
 
+## Would two cameras be better?
+
+Yes — but probably not for the reason you expect, and one of the obvious
+combinations is a trap.
+
+**What a second camera actually buys**, in order of how much it helps:
+
+1. **Seeing past people.** One overhead camera is blocked every time a
+   player leans across the cloth. With two, something usually still sees
+   each ball, and the table only counts as obstructed when *every* camera is
+   blocked. In a test with a body blocking one view of the far end, the
+   blocked camera found 6 of 8 balls on its own and the pair found 8.
+2. **Glare.** A specular highlight that ruins a ball in one view is rarely
+   in the same place in the other.
+3. **Coverage.** On a 9 ft table under a low ceiling, one camera may not see
+   all four corners, or balls at the far end are too few pixels across. Two
+   cameras over opposite halves roughly double the pixels on a ball.
+4. **Accuracy** — real, but the smallest of the four, and the cheapest to
+   get another way. Most of the position error a single camera has at the
+   far end is parallax, which is geometry (see below).
+
+So: add a second camera to see past people and around glare, not to make the
+numbers better.
+
+### Which combination
+
+| | verdict |
+|---|---|
+| **2 × HD webcams** | **best value.** Cheap, high resolution, no USB bandwidth drama, and each can be placed purely for coverage. |
+| **1 × Kinect v2 + 1 × HD webcam** | **good.** The Kinect's depth answers "is an arm over the cloth?" directly, and the webcam gives you a second, higher-resolution colour view. Uses the sensor you already own for the one thing it is uniquely good at. |
+| **2 × Kinect v2** | **avoid.** Each one wants its own USB 3 host controller — two on the same controller will not run — and they flood the bus. Their active infrared also illuminates the same scene, so the two depth streams interfere. All that for depth you do not need twice. |
+
+### Setting it up
+
+One camera stays the default and needs no configuration. For two:
+
+```bash
+python -m poolarena calibrate --source kinect --calibration config/calibration-head.json
+```
+
+```bash
+python -m poolarena calibrate --source cam:1 --calibration config/calibration-foot.json
+```
+
+```bash
+python -m poolarena run --source "kinect,cam:1"
+```
+
+Or copy `config/cameras.json.example` to `config/cameras.json` and list them
+there, which also lets you set each camera's height. The cameras do not have
+to match, be aligned, or be the same kind: each keeps its own calibration and
+everything is fused in table millimetres, not in pixels.
+
+## Parallax: the error a second camera is often bought to fix
+
+A ball is a 57 mm sphere, so the detector finds a centre sitting 28.6 mm
+**above** the cloth — while the calibration maps the cloth itself. A ball
+away from the point directly under the camera is therefore reported further
+out than it really is:
+
+| camera height | error at mid-table | error in the far corner of an 8 ft table |
+|---|---|---|
+| 1.8 m | 9.7 mm | 20.2 mm |
+| 2.2 m | 7.9 mm | 16.5 mm |
+| 3.0 m | 5.8 mm | 12.0 mm |
+
+At 2.2 m that is 29% of a ball width, which is enough to put a hanging ball
+on the wrong side of a pocket's capture radius. A second camera halves it.
+Correcting it in software removes essentially all of it, with one camera, for
+nothing — so measure your camera height and set `height_mm` rather than
+buying hardware for this.
+
+**It ships switched off, and here is the honest reason.** The geometry is not
+in question, and the correction is exact: shift a point the way a camera does
+and the maths puts it back to within a nanometre. What I could not do is
+demonstrate an end-to-end improvement, because in synthetic tests the
+detector's own centroid error at the edges of the frame is the same size as
+the parallax and sometimes points the other way. Rather than claim a benefit
+I had not measured, it is opt-in. **Check it on your own table**: put a ball
+on the foot spot, press `b` in the overlay, and see whether the projected
+disc lands on the ball better with `height_mm` set or unset.
+
 ### A plain webcam instead
 
 A 1080p UVC webcam works and is simpler. You lose depth-based obstruction

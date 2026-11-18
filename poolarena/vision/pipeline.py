@@ -52,13 +52,19 @@ class TrackedBall:
 class VisionPipeline:
     def __init__(self, table: Table, calibration: Calibration,
                  detector: BallDetector, px_per_mm: float = WARP_PX_PER_MM,
-                 obstruction_depth: Any = None) -> None:
+                 obstruction_depth: Any = None,
+                 camera_height_mm: float = 0.0,
+                 nadir: tuple[float, float] | None = None,
+                 name: str = "cam") -> None:
         import cv2
         self.cv2 = cv2
         self.table = table
         self.calib = calibration
         self.detector = detector
         self.px_per_mm = px_per_mm
+        self.name = name
+        self.camera_height_mm = float(camera_height_mm or 0.0)
+        self._nadir = tuple(nadir) if nadir else None
         self.W = int(table.length * px_per_mm)
         self.H = int(table.width * px_per_mm)
         # image px -> warped px: table mm scaled by px_per_mm
@@ -83,6 +89,47 @@ class VisionPipeline:
     def to_mm(self, x: float, y: float) -> tuple[float, float]:
         return (x / self.px_per_mm, y / self.px_per_mm)
 
+    # --- parallax --------------------------------------------------------
+    @property
+    def nadir(self) -> tuple[float, float]:
+        """The point on the cloth directly below the camera, in table mm.
+
+        Estimated by mapping the centre of the camera image through the
+        calibration, which is exact for a camera pointing straight down and
+        close enough for one that is merely near-vertical. Override it in
+        config when the camera is well off to one side.
+        """
+        if self._nadir is None:
+            w = self.W / self.px_per_mm
+            h = self.H / self.px_per_mm
+            try:
+                img_centre = self.calib.to_image([(w / 2, h / 2)])[0]
+                self._nadir = tuple(self.calib.to_table([img_centre])[0])
+            except Exception:
+                self._nadir = (self.table.length / 2, self.table.width / 2)
+        return self._nadir
+
+    def correct_parallax(self, x: float, y: float) -> tuple[float, float]:
+        """Undo the outward shift caused by a ball being a sphere.
+
+        The detector finds the centre of a ball, which sits one radius ABOVE
+        the cloth, while the homography maps the cloth itself. The ray from
+        the camera through the ball's centre therefore meets the cloth
+        further out than the ball really is, by a factor of h/(h-r) measured
+        from the point under the camera.
+
+        At 2.2 m this is about 16 mm in the far corner of an 8 ft table —
+        nearly a third of a ball, and enough to put a hanging ball on the
+        wrong side of a pocket's capture radius. It is pure geometry, so it
+        costs nothing to remove.
+        """
+        h = self.camera_height_mm
+        if h <= self.table.ball_radius * 2:
+            return (x, y)                 # not configured, or nonsense
+        nx, ny = self.nadir
+        k = (h - self.table.ball_radius) / h
+        return (nx + (x - nx) * k, ny + (y - ny) * k)
+
     def process(self, frame: np.ndarray, depth: np.ndarray | None = None,
                 ts: float | None = None) -> TableState:
         ts = ts if ts is not None else time.time()
@@ -100,7 +147,7 @@ class VisionPipeline:
         dets = self.detector.detect(warped)
         self._associate(dets)
         balls = [
-            Ball(t.number, *self.to_mm(t.x, t.y), t.kind,
+            Ball(t.number, *self.correct_parallax(*self.to_mm(t.x, t.y)), t.kind,
                  self.table.ball_radius, t.confidence)
             for t in self.tracks if t.missing == 0
         ]

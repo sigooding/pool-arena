@@ -1,0 +1,18 @@
+{
+  "_comment": "Optional. Only needed for more than one camera \u2014 a single camera works with no file at all. Each camera keeps its own calibration, so they need not match. Calibrate each one with: python -m poolarena calibrate --source <source> --calibration config/calibration-<name>.json",
+  "cameras": [
+    {
+      "name": "head",
+      "source": "kinect",
+      "calibration": "config/calibration-head.json",
+      "height_mm": 0,
+      "_height_mm": "measured from the cloth to the lens. Non-zero turns on parallax correction; see docs/HARDWARE.md before using it."
+    },
+    {
+      "name": "foot",
+      "source": "cam:1",
+      "calibration": "config/calibration-foot.json",
+      "height_mm": 0
+    }
+  ]
+}

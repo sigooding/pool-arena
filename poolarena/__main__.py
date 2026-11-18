@@ -205,23 +205,56 @@ def cmd_demo(args) -> int:
 
 
 # --- live ----------------------------------------------------------------
+def camera_specs(args) -> list[dict]:
+    """Which cameras to use.
+
+    One camera is the default and needs no configuration. A second is an
+    option, not a rewrite: each camera keeps its own calibration and the
+    fusion happens in table millimetres, so they need not match each other
+    or even be the same kind of camera.
+
+    Sources: `--source auto`, `--source "kinect,cam:1"`, or a
+    `config/cameras.json` listing them with per-camera height and
+    calibration.
+    """
+    cfg_path = CONFIG / "cameras.json"
+    if getattr(args, "cameras", None):
+        cfg_path = Path(args.cameras)
+    if cfg_path.exists() and not getattr(args, "source", None):
+        cams = json.loads(cfg_path.read_text()).get("cameras", [])
+        if cams:
+            return cams
+    specs = [s.strip() for s in str(args.source or "auto").split(",") if s.strip()]
+    out = []
+    for i, spec in enumerate(specs):
+        name = spec.replace(":", "") or f"cam{i}"
+        calib = (Path(args.calibration) if len(specs) == 1
+                 else CONFIG / f"calibration-{name}.json")
+        out.append({"name": name, "source": spec, "calibration": str(calib),
+                    "height_mm": getattr(args, "camera_height", 0.0) or 0.0})
+    return out
+
+
 def cmd_run(args) -> int:
     """Real camera, real table."""
     from .vision import open_source
     from .vision.detect import build_detector
+    from .vision.multi import CameraView, MultiPipeline
     from .vision.pipeline import VisionPipeline
 
     table = load_table(args)
-    calib_path = Path(args.calibration)
-    if not calib_path.exists():
-        print(f"no calibration at {calib_path}\n"
-              f"run: python -m poolarena calibrate --source {args.source}", file=sys.stderr)
+    specs = camera_specs(args)
+    missing = [c for c in specs if not Path(c["calibration"]).exists()]
+    if missing:
+        for c in missing:
+            print(f"no calibration for {c['name']} at {c['calibration']}",
+                  file=sys.stderr)
+        print(f"\nrun: python -m poolarena calibrate --source {specs[0]['source']}",
+              file=sys.stderr)
         return 2
-    calib = Calibration.load(calib_path)
-    print(f"  calibration {calib.label}, rms {calib.error_mm:.1f} mm")
 
     ball_set = load_ball_set(args)
-    det_cfg = {}
+    det_cfg: dict = {}
     det_path = CONFIG / "detector.json"
     if det_path.exists():
         det_cfg = json.loads(det_path.read_text())
@@ -236,31 +269,36 @@ def cmd_run(args) -> int:
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
-    source = open_source(args.source)
-    pipeline = VisionPipeline(table, calib, detector)
-    print(f"  source      {source.name}")
+    views = []
+    for c in specs:
+        calib = Calibration.load(Path(c["calibration"]))
+        pipe = VisionPipeline(table, calib, build_detector(det_cfg),
+                              camera_height_mm=float(c.get("height_mm") or 0.0),
+                              nadir=tuple(c["nadir"]) if c.get("nadir") else None,
+                              name=c["name"])
+        views.append(CameraView(c["name"], open_source(c["source"]), pipe))
+        print(f"  camera      {c['name']:<10} {c['source']:<12} "
+              f"rms {calib.error_mm:.1f} mm"
+              + (f", parallax corrected for {c['height_mm']:.0f} mm"
+                 if c.get("height_mm") else ""))
+    rig = MultiPipeline(table, views)
     print(f"  balls       {ball_set.title}")
     print(f"  cloth       {table.cloth}")
     print(f"  game        {args.game}\n")
 
     engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
 
-    learned = False
+    if args.learn_cloth:
+        rig.learn_cloth()
+        print("  learned the empty cloth")
     try:
-        for color, depth in source.frames():
-            if color is None:
-                time.sleep(0.005)
-                continue
-            if not learned and args.learn_cloth:
-                pipeline.learn_cloth(color)
-                learned = True
-                print("  learned the empty cloth")
-            state = pipeline.process(color, depth)
-            engine.feed(state)
+        while True:
+            engine.feed(rig.read())
     except KeyboardInterrupt:
         print("\n  stopped")
     finally:
-        source.close()
+        engine.close()
+        rig.close()
     return 0
 
 
@@ -375,8 +413,14 @@ def main(argv: list[str] | None = None) -> int:
     d.set_defaults(func=cmd_demo)
 
     r = sub.add_parser("run", parents=[common], help="live camera")
-    r.add_argument("--source", default="auto",
-                   help="auto|kinect|cam:0|video:path  (auto finds a Kinect, else a webcam)")
+    r.add_argument("--source", default=None,
+                   help="auto|kinect|cam:0|video:path. Comma-separate for two "
+                        "cameras, e.g. \"kinect,cam:1\". Defaults to auto, or "
+                        "to config/cameras.json when that exists.")
+    r.add_argument("--cameras", help="a cameras.json listing several cameras")
+    r.add_argument("--camera-height", type=float, default=0.0,
+                   help="height of the camera above the cloth in mm. Enables "
+                        "parallax correction; leave unset if unsure.")
     r.add_argument("--calibration", default=str(CONFIG / "calibration.json"))
     r.add_argument("--weights", help="YOLO weights, switches the detector")
     r.add_argument("--learn-cloth", action="store_true",

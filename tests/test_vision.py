@@ -62,10 +62,11 @@ def synthetic_frame(uneven_light=True):
     return img
 
 
-def run(normalise_light=True):
+def run(cloth_model="local", normalise_light=True):
     calib = Calibration.from_corners(IMAGE_CORNERS, TABLE)
     pipe = VisionPipeline(TABLE, calib,
-                          ColorBallDetector(ball_px=28.6, normalise_light=normalise_light))
+                          ColorBallDetector(ball_px=28.6, cloth_model=cloth_model,
+                                            normalise_light=normalise_light))
     state = pipe.process(synthetic_frame())
     matched, errors = {}, []
     for b in state.balls:
@@ -88,12 +89,26 @@ def test_every_ball_is_found_and_placed_within_a_ball_width():
     assert max(errors) < 15, "a ball is 57 mm across; 15 mm is well inside it"
 
 
-def test_illumination_normalisation_rescues_the_dark_corners():
-    """Without it, balls in the shadowed corners of a lit table are lost."""
-    _, with_norm, _ = run(normalise_light=True)
-    _, without, _ = run(normalise_light=False)
-    assert len(with_norm) >= len(without)
-    assert len(with_norm) == len(LAYOUT)
+def test_the_local_cloth_model_beats_a_single_global_colour():
+    """A pool light leaves the corners far darker than the middle, and one
+    colour threshold for the whole table cannot hold across that."""
+    _, local, _ = run(cloth_model="local")
+    _, glob, _ = run(cloth_model="hue")
+    assert len(local) >= len(glob)
+    assert len(local) == len(LAYOUT), f"missed {sorted(set(LAYOUT) - set(local))}"
+
+
+def test_the_local_model_also_copes_with_perfectly_even_cloth():
+    """The opposite failure: dividing a flat frame by a blur of itself leaves
+    hue noise, which is how an earlier version lost its own cloth."""
+    import numpy as np
+    flat = synthetic_frame(uneven_light=False)
+    calib = Calibration.from_corners(IMAGE_CORNERS, TABLE)
+    det = ColorBallDetector(ball_px=28.6, cloth_model="local")
+    pipe = VisionPipeline(TABLE, calib, det)
+    mask = det.cloth_mask(pipe.warp(flat))
+    assert float((mask > 0).mean()) < 0.1, "most of the cloth must read as cloth"
+    assert len(pipe.process(flat).balls) >= len(LAYOUT) - 1
 
 
 def test_the_cue_and_the_black_are_told_apart_from_the_rest():

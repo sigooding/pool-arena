@@ -152,6 +152,24 @@ than from live `shot` messages. That is what makes a page opened in the middle
 of a frame show what has happened, and it means undo needs no special case in
 the client: the list simply comes back shorter.
 
+## Several cameras
+
+`poolarena/vision/multi.py` fuses any number of cameras. Each keeps its own
+`VisionPipeline` and calibration and reports table millimetres, so fusion
+happens in physical units and the cameras need not match, be aligned, or be
+the same kind of device.
+
+Two rules carry most of the value. Detections from *different* cameras within
+45 mm are the same ball and are merged, weighted by how near each camera is
+to it — the merge radius stays below a ball diameter so a rack never
+collapses into one ball, and two detections from the *same* camera are never
+merged with each other. And the table is obstructed only when every camera is
+obstructed, which is the main reason to hang a second one.
+
+A rig where every camera has failed reports `obstructed`, never an empty
+table: an empty table and a broken rig must not look alike, or every ball
+scores as potted.
+
 ## Swapping the detector
 
 `poolarena/models.py` installs and selects detector models. The colour

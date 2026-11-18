@@ -71,7 +71,12 @@ colour-coded shot feed:
   and takes a trained model from a link or a file, then tests it on a real
   camera frame. You do not need a GPU: detection runs once per shot on a
   still table. It says plainly that a `.pt` file runs code when loaded.
-- **116 tests** covering geometry, shot detection, every rule set and the full
+- **One camera or several.** A second camera is an option, not a rewrite:
+  each keeps its own calibration and the views are fused in table
+  millimetres. It buys seeing past a player leaning over the cloth, not
+  better numbers — see [docs/HARDWARE.md](docs/HARDWARE.md) for which
+  combination is worth buying and which to avoid.
+- **136 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

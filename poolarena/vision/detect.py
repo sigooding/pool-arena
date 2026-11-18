@@ -54,11 +54,16 @@ class ColorBallDetector(BallDetector):
 
     def __init__(self, ball_px: float = 36.0, cloth_tolerance: int = 34,
                  min_fill: float = 0.45, white_v: int = 165, white_s: int = 70,
-                 ball_set: str = "american", normalise_light: bool = True) -> None:
+                 ball_set: str = "american", normalise_light: bool = True,
+                 cloth_model: str = "local", local_sigma: float = 100.0,
+                 local_threshold: float = 26.0) -> None:
         import cv2
         self.cv2 = cv2
         self.ball_set = ball_set
         self.normalise_light = normalise_light
+        self.cloth_model = cloth_model
+        self.local_sigma = local_sigma
+        self.local_threshold = local_threshold
         self.ball_px = ball_px
         self.cloth_tolerance = cloth_tolerance
         self.min_fill = min_fill
@@ -87,11 +92,48 @@ class ColorBallDetector(BallDetector):
         which is the part that identifies a ball.
         """
         cv2 = self.cv2
-        blur = cv2.GaussianBlur(warped, (0, 0), 61)
-        out = warped.astype(np.float32) / np.maximum(blur.astype(np.float32), 1.0)
-        return np.clip(out * 128.0, 0, 255).astype(np.uint8)
+        # Normalise BRIGHTNESS only. Dividing all three channels by a blurred
+        # copy also divides out the colour, and on low-texture cloth — which
+        # is most of a pool table — what is left is hue noise, so the cloth
+        # model stops recognising its own cloth. Working on V in HSV removes
+        # the lighting gradient and leaves hue and saturation, which are the
+        # two things the mask actually uses.
+        hsv = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV).astype(np.float32)
+        v = hsv[:, :, 2]
+        blur = cv2.GaussianBlur(v, (0, 0), 61)
+        mean = float(np.mean(blur)) or 1.0
+        hsv[:, :, 2] = np.clip(v * (mean / np.maximum(blur, 1.0)), 0, 255)
+        return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+    def local_cloth_mask(self, warped: np.ndarray) -> np.ndarray:
+        """Not-cloth is whatever differs from the cloth *next to it*.
+
+        A single colour threshold for the whole table has to hold under a hot
+        spot in the middle and shadow in the corners, and it cannot. Comparing
+        each pixel against a heavily blurred copy of the frame sidesteps the
+        problem: over most of the cloth the blur IS the cloth, so lighting
+        gradients cancel and what stands out is a ball.
+
+        The blur has to be wide relative to a ball, or a rack biases its own
+        background and the balls in the middle of it vanish. At the default
+        sigma the blur spans several ball widths.
+        """
+        cv2 = self.cv2
+        lab = cv2.cvtColor(warped, cv2.COLOR_BGR2LAB).astype(np.float32)
+        bg = cv2.GaussianBlur(lab, (0, 0), self.local_sigma)
+        diff = np.linalg.norm(lab - bg, axis=2)
+        mask = (diff > self.local_threshold).astype(np.uint8) * 255
+        k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k)
+        return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k)
 
     def cloth_mask(self, warped: np.ndarray) -> np.ndarray:
+        if self.cloth_model == "local":
+            return self.local_cloth_mask(warped)
+        return self.hue_cloth_mask(warped)
+
+    def hue_cloth_mask(self, warped: np.ndarray) -> np.ndarray:
+        """The older model: one cloth colour for the whole table."""
         cv2 = self.cv2
         if self.normalise_light:
             warped = self.flatten(warped)
@@ -283,4 +325,7 @@ def build_detector(cfg: dict[str, Any]) -> BallDetector:
         min_fill=cfg.get("min_fill", 0.45),
         ball_set=cfg.get("ball_set", "american"),
         normalise_light=cfg.get("normalise_light", True),
+        cloth_model=cfg.get("cloth_model", "local"),
+        local_sigma=cfg.get("local_sigma", 100.0),
+        local_threshold=cfg.get("local_threshold", 26.0),
     )
