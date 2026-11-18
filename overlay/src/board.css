@@ -447,3 +447,27 @@ input:focus { outline: 2px solid var(--cloth-lit); outline-offset: -1px; }
   position: absolute; inset: 0; width: 100%; height: 100%;
   cursor: crosshair; touch-action: none;
 }
+
+
+/* --- undo ----------------------------------------------------------------
+   In the top bar, not in a settings drawer: the moment you need it is the
+   moment the table just scored something wrong, with people watching. */
+button.undo { border-color: #4A3A12; color: var(--gold); }
+button.undo:hover:not(:disabled) { background: #221B0C; }
+button:disabled { opacity: 0.35; cursor: default; }
+button:disabled:hover { background: var(--surface-2); }
+
+/* --- manual score correction --------------------------------------------
+   Undo puts the old score back; it does not know what the right one was.
+   These are the other half of fixing a misread shot. */
+.adjust {
+  grid-column: 2; grid-row: 2;
+  display: flex; gap: 6px; justify-content: flex-end;
+}
+.adjust button {
+  width: 34px; height: 34px; min-height: 0; padding: 0;
+  border-radius: 9px; font-size: 17px; line-height: 1;
+  color: var(--dim);
+}
+.adjust button:hover { color: var(--ink); }
+.player .score { grid-row: 1; }

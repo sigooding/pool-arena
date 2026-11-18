@@ -6,6 +6,7 @@ Hub that anything can subscribe to.
 """
 from __future__ import annotations
 
+import copy
 import json
 import time
 from dataclasses import dataclass, field
@@ -30,12 +31,21 @@ class Engine:
     detector: ShotDetector = field(init=False)
     history: list[dict[str, Any]] = field(default_factory=list)
     on_shot: Callable[[ShotWindow], None] | None = None
+    #: how many shots can be taken back
+    undo_depth: int = 50
 
     def __post_init__(self) -> None:
         self.detector = ShotDetector(self.table)
         self.hub.on_message = self.handle_client_message
         self._last_push = 0.0
         self._awaiting_turn_fx = True
+        # A snapshot of the game taken before each shot is judged. Rewinding
+        # a score is not something that can be computed backwards — a foul may
+        # have changed whose turn it is, which group each player owns, how many
+        # visits they hold and which zones were lit — so the honest way to undo
+        # is to keep the state that existed before, and put it back.
+        self._undo: list[tuple[Game, dict[str, Any]]] = []
+        self._redo: list[tuple[Game, dict[str, Any]]] = []
 
     # --- game lifecycle ----------------------------------------------------
     def start_game(self, name: str, players: list[str] | None = None,
@@ -58,6 +68,8 @@ class Engine:
                         ball_set=self.ball_set)
         self.detector.reset(self.detector.resting)
         self.history.clear()
+        self._undo.clear()
+        self._redo.clear()
         self._awaiting_turn_fx = True
         self.hub.broadcast({"type": "table", "table": self.table.to_json(),
                             "ball_set": self.ball_set.to_json()}, sticky_key="table")
@@ -66,13 +78,30 @@ class Engine:
         # shows nothing until groups are assigned), so without an explicit clear
         # the previous game's zones or highlights stay lit on the cloth.
         self.emit_effects(self.game.on_start(), clear="all")
+        self.push_history()
         self.push_scoreboard()
         return self.game
 
     def push_scoreboard(self) -> None:
         if self.game:
-            self.hub.broadcast({"type": "scoreboard", "scoreboard": self.game.scoreboard()},
+            board = self.game.scoreboard()
+            board["can_undo"] = self.can_undo
+            board["can_redo"] = self.can_redo
+            self.hub.broadcast({"type": "scoreboard", "scoreboard": board},
                                sticky_key="scoreboard")
+
+    def push_history(self) -> None:
+        """The shot list, replayed to anyone who connects.
+
+        Sticky because the scoreboard builds its feed from this rather than
+        from live shot messages: open the page in the middle of a frame and
+        you should see what has happened, not an empty panel. It also means
+        undo needs no special case in the client — the list simply gets
+        shorter.
+        """
+        self.hub.broadcast({"type": "history", "history": self.history[-25:],
+                            "can_undo": self.can_undo, "can_redo": self.can_redo},
+                           sticky_key="history")
 
     def emit_effects(self, effects: list[Effect], clear: str | None = None) -> None:
         """Send a batch. `clear` drops existing persistent effects first:
@@ -108,6 +137,7 @@ class Engine:
 
         ctx = ShotContext(before=window.before, after=window.after,
                           events=window.events, table=self.table, shooter=self.game.turn)
+        snapshot = self._snapshot(self.game)
         result = self.game.apply(ctx)
 
         record = {
@@ -120,8 +150,12 @@ class Engine:
         }
         self.history.append(record)
         self._append_log(record)
+        self._undo.append((snapshot, record))
+        del self._undo[:-self.undo_depth]
+        self._redo.clear()          # a new shot abandons any redo branch
 
         self.hub.broadcast({"type": "shot", "shot": record})
+        self.push_history()
         self.emit_effects(result.effects)
         self.push_scoreboard()
         self._awaiting_turn_fx = True
@@ -129,6 +163,95 @@ class Engine:
         if self.on_shot:
             self.on_shot(window)
         return window
+
+    # --- undo ---------------------------------------------------------------
+    def _snapshot(self, game: Game) -> Game:
+        """A deep copy of the game, sharing the table.
+
+        The table is geometry and never changes during a frame, so copying it
+        would only waste memory and leave the restored game pointing at a
+        different object than the engine.
+        """
+        table = game.table
+        game.table = None                    # type: ignore[assignment]
+        try:
+            clone = copy.deepcopy(game)
+        finally:
+            game.table = table
+        clone.table = table
+        return clone
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(self._undo)
+
+    @property
+    def can_redo(self) -> bool:
+        return bool(self._redo)
+
+    def undo(self) -> dict[str, Any]:
+        """Take back the last judged shot.
+
+        This rewinds the *score*, not the table. The balls are wherever they
+        physically are, and the detector keeps its current resting state — so
+        after an undo the next real shot is judged from where the table
+        actually is, which is what you want when the system got one wrong.
+        """
+        if not self._undo:
+            return {"ok": False, "error": "nothing to undo"}
+        snapshot, record = self._undo.pop()
+        self._redo.append((self._snapshot(self.game), record))
+        self.game = snapshot
+        if self.history:
+            self.history.pop()
+        self._awaiting_turn_fx = True
+        self._after_rewind(f"undid shot {record.get('shot', 0) + 1}")
+        return {"ok": True, "undone": record, "can_undo": self.can_undo}
+
+    def redo(self) -> dict[str, Any]:
+        if not self._redo:
+            return {"ok": False, "error": "nothing to redo"}
+        snapshot, record = self._redo.pop()
+        self._undo.append((self._snapshot(self.game), record))
+        self.game = snapshot
+        self.history.append(record)
+        self._awaiting_turn_fx = True
+        self._after_rewind(f"redid shot {record.get('shot', 0) + 1}")
+        return {"ok": True, "redone": record, "can_redo": self.can_redo}
+
+    def adjust_score(self, player: int, delta: int = 0,
+                     value: int | None = None) -> dict[str, Any]:
+        """Set a score by hand.
+
+        Undo on its own only half-fixes a misread shot: it puts the old score
+        back, but nothing re-judges what really happened. This is the other
+        half — the override for when the camera called it wrong and the right
+        answer is simply a different number.
+        """
+        if not self.game:
+            return {"ok": False, "error": "no game running"}
+        if not 0 <= player < len(self.game.players):
+            return {"ok": False, "error": f"no player {player}"}
+        p = self.game.players[player]
+        before = p.score
+        p.score = int(value) if value is not None else max(0, p.score + int(delta))
+        self.push_scoreboard()
+        self.emit_effects([Effect("score_pop", {"player": player,
+                                                "delta": p.score - before,
+                                                "total": p.score}, layer="hud")])
+        return {"ok": True, "player": player, "score": p.score}
+
+    def _after_rewind(self, message: str) -> None:
+        self.hub.broadcast({"type": "table", "table": self.table.to_json(),
+                            "ball_set": self.ball_set.to_json()}, sticky_key="table")
+        # Clear the cloth: the effects on it belong to a shot that no longer
+        # counts, and leaving a win banner up after undoing the winning shot
+        # would be worse than showing nothing.
+        self.emit_effects([Effect("banner", {"text": "UNDO", "subtitle": message,
+                                             "tone": "bad", "duration": 2200},
+                                  layer="hud")], clear="all")
+        self.push_scoreboard()
+        self.push_history()
 
     # --- client commands ---------------------------------------------------
     def handle_client_message(self, msg: dict[str, Any], client: Any = None) -> None:
@@ -155,6 +278,14 @@ class Engine:
             self.emit_effects([Effect("pocket_glow", {"pocket": msg["pocket"],
                                                       "color": "#f472b6", "persist": True},
                                       layer="guide")])
+        elif kind == "undo":
+            self.hub.broadcast({"type": "undo_result", **self.undo()})
+        elif kind == "redo":
+            self.hub.broadcast({"type": "undo_result", **self.redo()})
+        elif kind == "adjust_score":
+            self.adjust_score(int(msg.get("player", 0)),
+                              delta=int(msg.get("delta", 0)),
+                              value=msg.get("value"))
         elif kind == "next_turn" and self.game:
             self.game.next_turn()
             self.push_scoreboard()

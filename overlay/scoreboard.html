@@ -19,8 +19,13 @@
       </div>
     </div>
     <div class="bar-right">
-      <div class="shotno"><span id="shot-no">—</span><small>shot</small></div>
-      <button class="icon" id="toggle-setup" aria-expanded="false" title="Game setup">Setup</button>
+      <div class="shotno"><span id="shot-no">&mdash;</span><small>shot</small></div>
+      <button class="icon undo" id="undo" disabled
+              title="Take back the last shot">Undo</button>
+      <button class="icon" id="redo" disabled hidden
+              title="Put it back">Redo</button>
+      <button class="icon" id="toggle-setup" aria-expanded="false"
+              title="Game setup">Setup</button>
     </div>
   </header>
 

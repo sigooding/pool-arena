@@ -136,9 +136,28 @@ Server to client:
 | `effects` | a batch of `{name, args, layer}` | no |
 | `scoreboard` | players, turn, log | yes |
 | `shot` | the full record: events + verdict | no |
+| `history` | the last 25 shots | yes |
+| `undo_result` | whether an undo or redo took | no |
 
 Sticky messages are replayed to a client when it connects, so opening the
 overlay mid-game shows the right thing immediately.
 
 Client to server: `start_game`, `next_turn`, `call_pocket`, `games`,
-`test_effect`, `projector_calibration`, `ping`.
+`test_effect`, `projector_calibration`, `calibrate`, `projector_nudge`,
+`undo`, `redo`, `adjust_score`, `ping`.
+
+The scoreboard's shot feed is built from the sticky `history` message rather
+than from live `shot` messages. That is what makes a page opened in the middle
+of a frame show what has happened, and it means undo needs no special case in
+the client: the list simply comes back shorter.
+
+## Undo
+
+Rewinding a score cannot be computed backwards. A single shot may have
+assigned ball groups, changed whose turn it is, handed out two visits, lit a
+new set of zones and ended the frame — so the engine keeps a deep copy of the
+game taken immediately before each shot is judged, and undo puts it back. The
+copy shares the `Table`, which is geometry and never changes.
+
+Undo rewinds the game, not the detector: the balls are wherever they
+physically are, so the next real shot is judged from the current layout.

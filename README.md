@@ -50,7 +50,12 @@ colour-coded shot feed:
   on an English set rather than scored by guesswork.
 - **A simulator** good enough to develop and demo the whole system without a
   camera, a projector or a table.
-- **73 tests** covering geometry, shot detection, every rule set and the full
+- **Undo, redo and manual score correction.** Undo is in the top bar, not
+  buried in settings — it rewinds whose turn it is, group assignment, UK
+  visits and a frame the table wrongly called as won. Per-player +/- buttons
+  cover the other half: undo restores the old score, but only you know the
+  right one.
+- **88 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet
@@ -60,13 +65,29 @@ colour-coded shot feed:
   Expect to spend an evening on `config/detector.json`.
 - **No cue-ball-in-hand placement.** After a scratch the engine says "ball in
   hand"; nothing enforces where the cue ball is put back.
-- **No undo.** A mis-scored shot cannot be corrected from the UI yet.
 - **UK rules vary by league.** The two published codes are implemented and
   their differences are options, but your pub may play something else; see
   [docs/GAMES.md](docs/GAMES.md).
 - Live cue-stick tracking (the "draw the line I'm actually on" feature) is
   designed for but not built.
 - No audio.
+
+## When the table gets a shot wrong
+
+It will, especially before the detector is tuned. Two controls, both in the
+scoreboard page:
+
+- **Undo** (top bar) takes back the last judged shot. It rewinds the whole
+  game state — the score, whose turn it is, which group each player owns, UK
+  two-visit state, and a frame that was wrongly called as won. Press it
+  repeatedly to go further back. **Redo** appears if you overshoot.
+- **+ / −** on each player card sets a score by hand. Undo puts the old score
+  back but cannot know what the right one was; this is the override for when
+  the camera called it and the answer is simply a different number.
+
+Undo rewinds the *score*, not the table. The balls stay where they physically
+are, so the next real shot is judged from the current layout — which is what
+you want when the system got one wrong and play has moved on.
 
 ## Commands
 

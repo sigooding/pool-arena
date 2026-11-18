@@ -46,8 +46,12 @@ function route(msg) {
       break;
     case 'state':      mini.setBalls(msg.state.balls || []); break;
     case 'scoreboard': board = msg.scoreboard; render(); break;
-    case 'shot':       pushShot(msg.shot); break;
+    case 'shot':       break;      // the feed comes from history, below
+    case 'history':    setFeed(msg.history || []); break;
     case 'error':      showAlert(msg.error); break;
+    case 'undo_result':
+      if (!msg.ok) showAlert(msg.error || 'nothing to undo');
+      break;
     default: break;
   }
 }
@@ -73,6 +77,7 @@ function applyBallSet(bs) {
   ballSetInfo = bs;
   setBallSet(bs);
   mini.draw();
+  renderFeed();          // player names come from the scoreboard
 }
 
 function renderGames() {
@@ -162,6 +167,10 @@ function render() {
     setState(`${board.players[board.turn].name} to play`, true);
   }
 
+  el('undo').disabled = !board.can_undo;
+  el('redo').disabled = !board.can_redo;
+  el('redo').hidden = !board.can_redo;
+
   mini.highlight = new Set();
   const list = el('players-list');
   list.textContent = '';
@@ -203,7 +212,19 @@ function render() {
     score.className = 'score';
     score.textContent = p.score;
 
-    card.append(name, meta, score);
+    const adjust = document.createElement('div');
+    adjust.className = 'adjust';
+    for (const [label, delta, title] of [['\u2212', -1, 'one less'],
+                                         ['+', 1, 'one more']]) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.title = `${p.name}: ${title}`;
+      btn.onclick = () => send({ type: 'adjust_score', player: i, delta });
+      adjust.appendChild(btn);
+    }
+
+    card.append(name, meta, score, adjust);
     list.appendChild(card);
 
     // ring the current player's remaining balls on the live table
@@ -216,23 +237,31 @@ function render() {
 
 // --- shot feed ------------------------------------------------------------
 // Built from shot records rather than the engine's text log, so each row can
-// be classified and coloured instead of being one more grey line.
-const feed = [];
+// be classified and coloured instead of being one more grey line. The whole
+// list is replaced from the engine's history on every change, which means a
+// page opened mid-frame is populated and undo needs no client-side special
+// case — the list simply comes back shorter.
+let feed = [];
 
-function pushShot(shot) {
+function setFeed(history) {
+  // Keep the raw records and resolve player names at render time: history can
+  // arrive before the scoreboard does, and a row that says "P1" because of
+  // one frame's ordering would never correct itself.
+  feed = history.slice().reverse();
+  renderFeed();
+}
+
+function feedRow(shot) {
   const r = shot.result || {};
   const ev = shot.events || {};
-  const who = (board && board.players[shot.shooter] && board.players[shot.shooter].name) || '—';
-
+  const who = (board && board.players[shot.shooter]
+               && board.players[shot.shooter].name) || `P${(shot.shooter ?? 0) + 1}`;
   let kind = 'safe';
   let text = r.message || 'safe';
   if (r.winner !== null && r.winner !== undefined) kind = 'win';
   else if (r.foul) { kind = 'foul'; text = r.foul; }
   else if ((ev.pocketed || []).length) kind = 'pot';
-
-  feed.unshift({ who, text, kind, balls: ev.pocketed || [], pockets: ev.pocketed_in || {} });
-  feed.length = Math.min(feed.length, 40);
-  renderFeed();
+  return { who, text, kind, balls: ev.pocketed || [] };
 }
 
 function renderFeed() {
@@ -245,7 +274,8 @@ function renderFeed() {
     ol.appendChild(li);
     return;
   }
-  for (const f of feed) {
+  for (const shot of feed) {
+    const f = feedRow(shot);
     const li = document.createElement('li');
     li.className = f.kind;
     const who = document.createElement('span');
@@ -297,6 +327,8 @@ el('tabs').onclick = (e) => {
   if (want === 'camera') refreshCamera();
 };
 el('pass').onclick = () => send({ type: 'next_turn' });
+el('undo').onclick = () => send({ type: 'undo' });
+el('redo').onclick = () => send({ type: 'redo' });
 el('boom').onclick = () => send({
   type: 'test_effect', name: 'fireworks', args: { duration: 2500, palette: 'rainbow' },
 });
