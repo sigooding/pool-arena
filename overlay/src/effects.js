@@ -786,7 +786,141 @@ export class AssignGroup extends Banner {
 
 export class AimAssist extends AimLine {}
 
+export class PlacementArea extends Effect {
+  defaultDuration = 0;
+  constructor(args) { super(args); this.layer = 'guide'; this.persist = true; }
+  draw(ctx, view) {
+    const sh = this.args.shape || { kind: 'table' };
+    const pulse = 0.5 + 0.5 * Math.sin(this.t * 2.6);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.35 + 0.25 * pulse;
+    ctx.strokeStyle = adapt('#38bdf8');
+    ctx.lineWidth = Math.max(2, view.mm(12));
+    ctx.setLineDash([view.mm(70), view.mm(45)]);
+    if (sh.kind === 'rect') {
+      view.pathPoly(ctx, [[sh.x - sh.w / 2, sh.y - sh.h / 2],
+                          [sh.x + sh.w / 2, sh.y - sh.h / 2],
+                          [sh.x + sh.w / 2, sh.y + sh.h / 2],
+                          [sh.x - sh.w / 2, sh.y + sh.h / 2]]);
+    } else if (sh.kind === 'halfcircle') {
+      const pts = [];
+      for (let i = 0; i <= 24; i++) {
+        const a = Math.PI / 2 + (i / 24) * Math.PI;
+        pts.push([sh.x + Math.cos(a) * sh.r, sh.y + Math.sin(a) * sh.r]);
+      }
+      view.pathPoly(ctx, pts);
+    } else {
+      view.pathPoly(ctx, [[0, 0], [view.L, 0], [view.L, view.W], [0, view.W]]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (this.args.label) {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = adapt('#38bdf8');
+      ctx.font = `700 ${Math.round(view.mm(56))}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      const [lx, ly] = view.project(view.L / 2, view.W - 120);
+      ctx.fillText(this.args.label, lx, ly);
+    }
+    ctx.restore();
+  }
+}
+
+export class PlacementOk extends Effect {
+  defaultDuration = 700;
+  draw(ctx, view) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1 - this.p;
+    ctx.strokeStyle = adapt('#4ade80');
+    ctx.lineWidth = Math.max(2, view.mm(14));
+    view.circlePoly(ctx, this.args.x, this.args.y, 40 + ease(this.p) * 90);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+export class PlacementBad extends Effect {
+  defaultDuration = 1800;
+  draw(ctx, view) {
+    const k = 0.5 + 0.5 * Math.sin(this.t * 10);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (1 - this.p) * k;
+    ctx.strokeStyle = adapt('#ff2d55');
+    ctx.lineWidth = Math.max(2, view.mm(14));
+    const r = 70;
+    view.pathPoly(ctx, [[this.args.x - r, this.args.y - r],
+                        [this.args.x + r, this.args.y + r]], false); ctx.stroke();
+    view.pathPoly(ctx, [[this.args.x - r, this.args.y + r],
+                        [this.args.x + r, this.args.y - r]], false); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+export class PlacementSuggest extends Effect {
+  defaultDuration = 0;
+  constructor(args) { super(args); this.layer = 'guide'; this.persist = true; }
+  draw(ctx, view) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.45 + 0.35 * Math.sin(this.t * 3);
+    ctx.strokeStyle = adapt('#4ade80');
+    ctx.lineWidth = Math.max(1, view.mm(8));
+    ctx.setLineDash([view.mm(30), view.mm(22)]);
+    view.circlePoly(ctx, this.args.x, this.args.y, 28.6);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** The line the player is actually on, from the tracked cue. */
+export class CueLineFx extends Effect {
+  defaultDuration = 0;
+  constructor(args) { super(args); this.layer = 'guide'; this.persist = true; }
+  draw(ctx, view) {
+    const a = this.args;
+    if (!a.tip || !a.to) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.35 + 0.5 * (a.confidence ?? 0.5);
+    ctx.strokeStyle = adapt('#e0fbfc');
+    ctx.lineWidth = Math.max(2, view.mm(10));
+    view.pathPoly(ctx, [a.tip, a.to], false);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+export class CueContact extends Effect {
+  defaultDuration = 0;
+  constructor(args) { super(args); this.layer = 'guide'; this.persist = true; }
+  draw(ctx, view) {
+    const a = this.args;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = adapt('#ffd166');
+    ctx.lineWidth = Math.max(2, view.mm(10));
+    if (a.object_path) { view.pathPoly(ctx, a.object_path, false); ctx.stroke(); }
+    if (a.contact) {
+      ctx.strokeStyle = adapt('#ffffff');
+      ctx.lineWidth = Math.max(1, view.mm(6));
+      view.circlePoly(ctx, a.contact[0], a.contact[1], 28.6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 export const EFFECTS = {
+  placement_area: PlacementArea,
+  placement_ok: PlacementOk,
+  placement_bad: PlacementBad,
+  placement_suggest: PlacementSuggest,
+  cue_line: CueLineFx,
+  cue_contact: CueContact,
   pocket_glow: PocketGlow,
   pocket_arrows: PocketArrows,
   pocket_reject: PocketReject,

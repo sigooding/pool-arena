@@ -165,3 +165,89 @@ def test_a_session_id_cannot_escape_the_recordings_directory(tmp_path):
     secret = tmp_path.parent / "secret.json"
     secret.write_text(json.dumps({"id": "secret", "shots": []}))
     assert rec.load_session(tmp_path, "../secret") is None
+
+
+# --- across sessions ------------------------------------------------------
+def finished_game(tmp_path, players, pots_each, winner=None):
+    e = engine(tmp_path, players=players)
+    try:
+        for _ in range(pots_each):
+            shoot(e, BEFORE, AFTER, events(pocketed=[2], pockets={2: "TR"}, first=2))
+        e.recorder.finish(winner=winner)
+    finally:
+        e.close()
+
+
+def test_career_totals_span_every_recording(tmp_path):
+    finished_game(tmp_path, ("Sam", "Alex"), 2, winner=0)
+    finished_game(tmp_path, ("Sam", "Alex"), 3, winner=1)
+    c = rec.career(tmp_path)
+    assert c["games"] == 2
+    sam = next(p for p in c["players"] if p["name"] == "Sam")
+    assert sam["games"] == 2 and sam["shots"] == 5
+    assert sam["wins"] == 1 and sam["win_rate"] == 0.5
+
+
+def test_career_matches_names_case_insensitively(tmp_path):
+    """Nobody types their name the same way twice all night."""
+    finished_game(tmp_path, ("Sam", "Alex"), 2, winner=0)
+    finished_game(tmp_path, ("sam", "Alex"), 2, winner=0)
+    c = rec.career(tmp_path)
+    names = [p["name"] for p in c["players"]]
+    assert len(names) == len(set(n.lower() for n in names)), names
+    sam = next(p for p in c["players"] if p["name"].lower() == "sam")
+    assert sam["games"] == 2
+
+
+def test_career_ignores_empty_recordings(tmp_path):
+    e = engine(tmp_path)                 # started, never played
+    e.close()
+    assert rec.career(tmp_path)["games"] == 0
+
+
+def test_an_interrupted_game_is_found_and_a_finished_one_is_not(tmp_path):
+    finished_game(tmp_path, ("Sam", "Alex"), 2, winner=0)
+    assert rec.unfinished(tmp_path) is None
+
+    e = engine(tmp_path, players=("Jo", "Kit"))
+    shoot(e, BEFORE, AFTER, events(pocketed=[2], pockets={2: "TR"}, first=2))
+    e.close()
+    u = rec.unfinished(tmp_path)
+    assert u is not None and u["players"] == ["Jo", "Kit"]
+
+
+def test_resuming_restores_the_scores(tmp_path):
+    e = engine(tmp_path, players=("Jo", "Kit"))
+    for _ in range(3):
+        shoot(e, BEFORE, AFTER, events(pocketed=[2], pockets={2: "TR"}, first=2))
+    e.close()
+
+    e2 = Engine(table=TABLE, hub=Hub(), recordings=tmp_path, idle_after=0)
+    try:
+        info = e2.resume_last()
+        assert info is not None and info["shots"] == 3
+        assert [p.name for p in e2.game.players] == ["Jo", "Kit"]
+        assert e2.game.players[0].score == 3
+    finally:
+        e2.close()
+
+
+def test_resuming_with_nothing_to_resume_is_not_an_error(tmp_path):
+    e = Engine(table=TABLE, hub=Hub(), recordings=tmp_path, idle_after=0)
+    try:
+        assert e.resume_last() is None
+    finally:
+        e.close()
+
+
+def test_resume_does_not_restore_the_table_only_the_score(tmp_path):
+    """The balls are wherever they physically are now — same reasoning as undo."""
+    e = engine(tmp_path, players=("Jo", "Kit"))
+    shoot(e, BEFORE, AFTER, events(pocketed=[2], pockets={2: "TR"}, first=2))
+    e.close()
+    e2 = Engine(table=TABLE, hub=Hub(), recordings=tmp_path, idle_after=0)
+    try:
+        e2.resume_last()
+        assert e2.detector.resting is None, "the detector must start from now"
+    finally:
+        e2.close()

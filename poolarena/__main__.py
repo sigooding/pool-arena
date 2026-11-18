@@ -99,6 +99,7 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
 
     routes["/api/detector"] = detector_status
     routes["/api/sessions"] = lambda: {"sessions": rec.list_sessions(RECORDINGS)}
+    routes["/api/career"] = lambda: rec.career(RECORDINGS)
 
     posts = {
         "/api/camera/open": lambda m: cam.open(m.get("spec", "auto")),
@@ -349,14 +350,51 @@ def cmd_run(args) -> int:
     print(f"  cloth       {table.cloth}")
     print(f"  game        {args.game}\n")
 
-    engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
+    resumed = engine.resume_last() if args.resume else None
+    if resumed:
+        print(f"  resumed     {', '.join(resumed['players'])}, "
+              f"{resumed['shots']} shots already played")
+    else:
+        engine.start_game(args.game,
+                          players=[p.strip() for p in args.players.split(",")])
 
     if args.learn_cloth:
         rig.learn_cloth()
         print("  learned the empty cloth")
+
+    tracker = None
+    if args.cue_line:
+        from .vision.cue import CueTracker, aim_targets
+        from .types import Effect
+        tracker = CueTracker(table=table)
+        print("  cue line    on (experimental)")
+
     try:
         while True:
-            engine.feed(rig.read())
+            state = rig.read()
+            engine.feed(state)
+            if tracker is None:
+                continue
+            # The cue only exists in the frames everything else discards, so
+            # this runs while the table is NOT settled.
+            pipe0 = views[0].pipeline
+            warped = getattr(pipe0, "last_warped", None)
+            cue_ball = state.cue()
+            if warped is None or cue_ball is None or state.settled:
+                continue
+            line = tracker.find(warped, (cue_ball.x, cue_ball.y))
+            if line is None or line.confidence < 0.35:
+                continue
+            far = line.project(2600)
+            fx = [Effect("cue_line", {"tip": list(line.tip), "to": list(far),
+                                      "angle": line.angle_deg,
+                                      "confidence": line.confidence},
+                         layer="guide")]
+            hit = aim_targets(table, line,
+                              [(b.number, b.x, b.y) for b in state.balls])
+            if hit:
+                fx.append(Effect("cue_contact", hit, layer="guide"))
+            engine.emit_effects(fx)
     except KeyboardInterrupt:
         print("\n  stopped")
     finally:
@@ -462,6 +500,9 @@ def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="table config json")
     common.add_argument("--size", default="8ft", help="7ft|8ft|8ft-pro|9ft|10ft|snooker")
+    common.add_argument("--resume", action="store_true",
+                        help="pick up the last game that was interrupted "
+                             "rather than finished, restoring the scores")
     common.add_argument("--no-record", action="store_true",
                         help="do not keep a recording of the game. Recordings "
                              "are what the Review page plays back.")
@@ -506,6 +547,10 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--camera-height", type=float, default=0.0,
                    help="height of the camera above the cloth in mm. Enables "
                         "parallax correction; leave unset if unsure.")
+    r.add_argument("--cue-line", action="store_true",
+                   help="track the cue and project the line the player is "
+                        "actually on. Experimental: tested only against "
+                        "synthetic frames, so expect to tune it.")
     r.add_argument("--depth-balls", action="store_true",
                    help="also find balls in the Kinect's depth stream. Depth "
                         "ignores shadows, glare and cloth colour entirely, so "

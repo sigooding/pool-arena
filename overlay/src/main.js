@@ -11,6 +11,7 @@ import { makeEffect } from './effects.js';
 import { setBallSet } from './balls.js';
 import { setCloth } from './cloth.js';
 import { Attract } from './attract.js';
+import * as sound from './sound.js';
 
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
@@ -158,6 +159,16 @@ function handle(msg) {
 // that lights two things at once (cut-throat marks your balls *and* your
 // targets) sends them together and both stay up.
 function applyBatch(list, clear) {
+  // One noise per batch at most for the loud ones: a shot that pots two
+  // balls should sound like one bigger event, not two overlapping ones.
+  const heard = new Set();
+  for (const e of list) {
+    const key = e.name === 'explosion' ? 'pot' : e.name;
+    if (heard.has(key)) continue;
+    heard.add(key);
+    sound.play(e.name, e.args || {});
+  }
+
   // An explicit clear wins over the per-batch rule below: a new game must be
   // able to wipe the previous one's guides even when it draws nothing itself.
   if (clear === 'all') {
@@ -350,6 +361,7 @@ const HELP = [
   ['b', 'draw tracked balls (alignment check)'],
   ['t', 'trails on/off'],
   ['o', 'clip effects to the table (default on)'],
+  ['s', 'sound on/off'],
   ['a', 'preview the attract mode'],
   ['x', 'test explosion'],
   ['g', 'test pocket glows'],
@@ -389,6 +401,11 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'x') {
     spawn({ name: 'explosion', args: { x: scene.table.length / 2, y: scene.table.width / 2,
                                        intensity: 1.6, palette: 'fire' } });
+  } else if (k === 's') {
+    sound.setEnabled(!sound.isEnabled());
+    localStorage.setItem('poolarena.sound', sound.isEnabled() ? '1' : '0');
+    spawn({ name: 'banner', args: { text: sound.isEnabled() ? 'SOUND ON' : 'SOUND OFF',
+                                    duration: 1200 } });
   } else if (k === 'a') {
     send({ type: 'attract', on: !attract.on });
   } else if (k === 'g') {
@@ -406,6 +423,11 @@ window.addEventListener('keydown', (e) => {
 
 // --- go -------------------------------------------------------------------
 renderHelp();
+sound.setEnabled(localStorage.getItem('poolarena.sound') !== '0');
+// Browsers will not make a sound until the page has been interacted with.
+for (const ev of ['pointerdown', 'keydown']) {
+  window.addEventListener(ev, () => sound.unlock(), { once: true });
+}
 resize();
 view.load();
 connect();

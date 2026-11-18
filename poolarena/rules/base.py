@@ -47,6 +47,11 @@ class Game(ABC):
     # it playable with an English reds-and-yellows set.
     needs_numbered_balls: bool = True
 
+    #: Where the cue ball may be put back after a foul: "anywhere" (American
+    #: ball in hand, and UK World Rules), "baulk" (traditional UK pub rules)
+    #: or "in_d". Pub rules vary, so it is an option.
+    ball_in_hand_area: str = "anywhere"
+
     #: True when the game's guides are the game — zones to roll through, a
     #: nominated pocket, a ring to stop the cue ball in. Without a projector
     #: these are still playable, but the player has to read them off the

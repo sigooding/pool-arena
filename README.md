@@ -95,7 +95,16 @@ colour-coded shot feed:
   commit most, how far you move the cue ball, best run.
 - **A manual built into the app**, at `/manual.html`, so it is there at the
   table without a phone or a network.
-- **177 tests** covering geometry, shot detection, every rule set and the full
+- **Ball-in-hand checking.** After a foul the legal area is marked on the
+  cloth, and where the cue ball is actually put back is judged — on the
+  table, not touching anything, and in the right half if your rules say so,
+  with the nearest legal spot offered when it is wrong.
+- **Sound**, synthesised in the browser: no files to ship or license.
+- **Cue tracking** (`--cue-line`, experimental): the line the player is
+  actually on, projected live, with what it will hit.
+- **Nothing lost on a restart.** `--resume` picks up a frame that was
+  interrupted, and career totals span every recording.
+- **215 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

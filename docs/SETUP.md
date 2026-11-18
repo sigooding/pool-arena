@@ -156,6 +156,47 @@ There is a manual inside the app at `/manual.html`, linked from the
 scoreboard. It covers the same ground as these docs in the order you need it
 at the table, and it works with no network.
 
+## The rest of the switches
+
+| | what it does |
+|---|---|
+| `--resume` | pick up a frame that was interrupted rather than finished |
+| `--no-record` | stop keeping recordings |
+| `--cue-line` | track the cue and project the line you are on (experimental) |
+| `--depth-balls` | find balls in the Kinect's depth stream as well as in colour |
+| `--no-projector` | scoring only; guides move to the scoreboard |
+| `--cloth "#8FB7D9"` | your cloth colour, which picks the projected palette |
+| `--ball-set english` | reds and yellows rather than numbered balls |
+| `--idle-after 0` | turn the attract mode off |
+
+Sound is on by default on the projector page; `s` toggles it.
+
+### Ball in hand
+
+After a foul the legal area is marked on the cloth and the cue ball's new
+position is checked: on the table, not touching another ball, and in the
+right area for the code you are playing. When it is wrong the table says so
+and marks the nearest legal spot, which it offers rather than imposes.
+
+Set the area per game — `anywhere` (American and UK World Rules), `baulk`
+(traditional pub rules) or `in_d`:
+
+```json
+{"type": "start_game", "game": "uk8", "players": ["Sam", "Alex"],
+ "options": {"ball_in_hand_area": "baulk"}}
+```
+
+### Cue tracking is experimental
+
+`--cue-line` finds the cue in the frames everything else discards and
+projects the line you are on, plus what it will hit first. On synthetic
+frames it recovers the angle to a twentieth of a degree and is not fooled by
+an arm lying on the cloth. **It has never been run against a real table**,
+and a line detector is exactly the sort of thing that behaves differently on
+real pixels, so treat it as a starting point with the dials exposed.
+
+Also worth knowing: most leagues ban aiming aids in matches.
+
 ## If something is wrong
 
 | Symptom | Likely cause |

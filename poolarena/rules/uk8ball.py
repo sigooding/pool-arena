@@ -55,6 +55,10 @@ class UKEightBall(Game):
         self.foul_free_shot = bool(self.options.get("free_shot", self.foul_free_shot))
         self.break_balls_to_rail = int(
             self.options.get("break_balls_to_rail", self.break_balls_to_rail))
+        # World Rules give ball in hand anywhere; plenty of pubs still play
+        # it from baulk, so it is a setting rather than a decision.
+        self.ball_in_hand_area = str(
+            self.options.get("ball_in_hand_area", self.ball_in_hand_area))
         for p in self.players:
             p.visits = 1
 

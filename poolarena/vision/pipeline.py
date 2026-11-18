@@ -74,6 +74,9 @@ class VisionPipeline:
         self.missing_limit = 3
         self.obstructed_frames = 0
         self._last_state = TableState(balls=[], ts=time.time())
+        #: kept so a cue tracker can look at the same frame without warping
+        #: it a second time
+        self.last_warped = None
         self._cloth_ref: np.ndarray | None = None
 
     # --- frame handling ----------------------------------------------------
@@ -140,6 +143,7 @@ class VisionPipeline:
                 ts: float | None = None) -> TableState:
         ts = ts if ts is not None else time.time()
         warped = self.warp(frame)
+        self.last_warped = warped
 
         obstructed = self._obstructed(warped, depth)
         if obstructed:

@@ -142,6 +142,83 @@ def delete_session(directory: Path, session_id: str) -> bool:
     return False
 
 
+# --- across the whole night, and the ones before it ----------------------
+def career(directory: Path, limit: int = 400) -> dict[str, Any]:
+    """Totals per player name, across every recording.
+
+    Names are matched as typed, which is crude but honest: there are no
+    accounts here, and inventing identity matching would create confident
+    nonsense the first time somebody types "sam" instead of "Sam". It
+    lower-cases for matching and shows the spelling used most.
+    """
+    if not directory.is_dir():
+        return {"players": [], "games": 0}
+    tally: dict[str, dict[str, Any]] = {}
+    games = 0
+    for f in sorted(directory.glob("*.json"), reverse=True)[:limit]:
+        try:
+            d = json.loads(f.read_text())
+        except Exception:
+            continue
+        if not d.get("shots"):
+            continue
+        games += 1
+        stats = analyse(d)
+        winner = d.get("winner")
+        for i, p in enumerate(stats["players"]):
+            if not p["shots"]:
+                continue
+            key = p["name"].strip().lower()
+            t = tally.setdefault(key, {
+                "name": p["name"], "spellings": {}, "games": 0, "wins": 0,
+                "shots": 0, "pots": 0, "balls_potted": 0, "fouls": 0,
+                "best_run": 0, "travel": [], "foul_kinds": {},
+            })
+            t["spellings"][p["name"]] = t["spellings"].get(p["name"], 0) + 1
+            t["games"] += 1
+            t["wins"] += 1 if winner == i else 0
+            for k in ("shots", "pots", "balls_potted", "fouls"):
+                t[k] += p[k]
+            t["best_run"] = max(t["best_run"], p["best_run"])
+            if p["avg_cue_travel_mm"]:
+                t["travel"].append(p["avg_cue_travel_mm"])
+            for kind, n in p["foul_kinds"].items():
+                t["foul_kinds"][kind] = t["foul_kinds"].get(kind, 0) + n
+
+    out = []
+    for t in tally.values():
+        travel = t.pop("travel")
+        t["name"] = max(t.pop("spellings").items(), key=lambda kv: kv[1])[0]
+        t["pot_rate"] = round(t["pots"] / t["shots"], 3) if t["shots"] else None
+        t["foul_rate"] = round(t["fouls"] / t["shots"], 3) if t["shots"] else None
+        t["avg_cue_travel_mm"] = round(sum(travel) / len(travel)) if travel else None
+        t["worst_foul"] = (max(t["foul_kinds"].items(), key=lambda kv: kv[1])[0]
+                           if t["foul_kinds"] else None)
+        t["win_rate"] = round(t["wins"] / t["games"], 3) if t["games"] else None
+        out.append(t)
+    out.sort(key=lambda p: (-p["games"], p["name"]))
+    return {"players": out, "games": games}
+
+
+def unfinished(directory: Path) -> dict[str, Any] | None:
+    """The most recent game that never ended, if there is one.
+
+    Someone closes the laptop mid-frame far more often than they press a
+    button marked "finish". The recording is already on disk shot by shot,
+    so the scores can be handed straight back rather than lost.
+    """
+    if not directory.is_dir():
+        return None
+    for f in sorted(directory.glob("*.json"), reverse=True)[:20]:
+        try:
+            d = json.loads(f.read_text())
+        except Exception:
+            continue
+        if d.get("finished") is None and d.get("shots"):
+            return d
+    return None
+
+
 # --- what the numbers say -------------------------------------------------
 def analyse(session: dict[str, Any]) -> dict[str, Any]:
     """Per-player figures aimed at "where am I losing frames".

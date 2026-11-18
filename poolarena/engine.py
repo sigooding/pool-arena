@@ -18,6 +18,7 @@ from .attract import AttractMode, IdleWatch
 from .ballset import AMERICAN, BallSet
 from .events import ShotDetector, ShotWindow
 from .geometry import Table
+from .placement import PlacementRule, area_outline, check as check_placement
 from .recording import Recorder
 from .rules import Game, ShotContext, available, get_game
 from .server.ws import Hub
@@ -59,6 +60,10 @@ class Engine:
         # have changed whose turn it is, which group each player owns, how many
         # visits they hold and which zones were lit — so the honest way to undo
         # is to keep the state that existed before, and put it back.
+        # After a foul the cue ball is picked up. Until it comes back we are
+        # watching for where it is put down, not for a shot.
+        self._awaiting_placement = False
+        self._placement_from: TableState | None = None
         self._undo: list[tuple[Game, dict[str, Any]]] = []
         self._redo: list[tuple[Game, dict[str, Any]]] = []
         self.recorder = Recorder(self.recordings) if self.recordings else None
@@ -117,6 +122,39 @@ class Engine:
         self.push_scoreboard()
         return self.game
 
+    def resume_last(self) -> dict[str, Any] | None:
+        """Pick up a frame that was interrupted rather than finished.
+
+        Only the score is restored, never the table: the balls are wherever
+        they physically are now, which is the same reasoning as undo. If the
+        rack was disturbed in the meantime the scores are still right and the
+        operator can correct them with the +/- buttons.
+        """
+        from .recording import unfinished
+        if not self.recordings:
+            return None
+        prior = unfinished(self.recordings)
+        if not prior:
+            return None
+        try:
+            game = self.start_game(prior["game"], players=prior.get("players"))
+        except (ValueError, KeyError):
+            return None
+        for shot in prior.get("shots", []):
+            res = shot.get("result", {})
+            i = shot.get("shooter", 0)
+            if 0 <= i < len(game.players):
+                ev = shot.get("events", {})
+                game.players[i].score += len(ev.get("pocketed") or [])
+            if res.get("turn_passes"):
+                game.next_turn()
+            game.shot_number += 1
+            self.history.append(shot)
+        self.push_history()
+        self.push_scoreboard()
+        return {"id": prior.get("id"), "shots": len(prior.get("shots", [])),
+                "players": prior.get("players")}
+
     def push_scoreboard(self) -> None:
         if self.game:
             board = self.game.scoreboard()
@@ -165,6 +203,12 @@ class Engine:
             self.hub.broadcast({"type": "state", "state": state.to_json()}, sticky_key="state")
             self._last_push = now
 
+        if self._check_placement(state):
+            # Re-seat the detector so putting the ball down is not then read
+            # as a shot that moved it from nowhere.
+            self.detector.reset(state)
+            return None
+
         window = self.detector.push(state)
 
         if window is None:
@@ -201,6 +245,9 @@ class Engine:
         del self._undo[:-self.undo_depth]
         self._redo.clear()          # a new shot abandons any redo branch
 
+        if result.ball_in_hand and not result.game_over:
+            self._begin_placement(window.after)
+
         self.hub.broadcast({"type": "shot", "shot": record})
         self.push_history()
         self.emit_effects(result.effects)
@@ -210,6 +257,66 @@ class Engine:
         if self.on_shot:
             self.on_shot(window)
         return window
+
+    # --- ball in hand ---------------------------------------------------------
+    @property
+    def placement_rule(self) -> PlacementRule:
+        area = getattr(self.game, "ball_in_hand_area", "anywhere") if self.game \
+            else "anywhere"
+        return PlacementRule(area=area)
+
+    def _begin_placement(self, after: TableState) -> None:
+        """Start watching for where the cue ball is put back."""
+        self._awaiting_placement = True
+        self._placement_from = after
+        rule = self.placement_rule
+        self.emit_effects([
+            Effect("placement_area", {
+                "area": rule.area,
+                "shape": area_outline(self.table, rule),
+                "label": f"ball in hand — {rule.describe(self.table)}",
+            }, layer="guide"),
+        ])
+        self.hub.broadcast({"type": "placement", "active": True,
+                            "area": rule.area,
+                            "shape": area_outline(self.table, rule),
+                            "label": rule.describe(self.table)},
+                           sticky_key="placement")
+
+    def _check_placement(self, state: TableState) -> bool:
+        """Judge a cue ball that has just reappeared. True when handled."""
+        if not self._awaiting_placement or not state.settled or state.obstructed:
+            return False
+        cue = state.cue()
+        if cue is None:
+            return False                      # still in somebody's hand
+
+        rule = self.placement_rule
+        others = [(b.x, b.y) for b in state.balls if not b.is_cue]
+        verdict = check_placement(self.table, rule, cue.x, cue.y, others)
+
+        self._awaiting_placement = False
+        self._placement_from = None
+        # Clear the legal-area marking whatever the verdict; the moment has
+        # passed either way.
+        self.emit_effects([], clear="guide")
+        self.hub.broadcast({"type": "placement", "active": False,
+                            **verdict.to_json()}, sticky_key="placement")
+
+        if verdict.ok:
+            self.emit_effects([Effect("placement_ok", {"x": cue.x, "y": cue.y})])
+        else:
+            fx = [Effect("placement_bad", {"x": cue.x, "y": cue.y,
+                                           "reason": verdict.reason}),
+                  Effect("banner", {"text": "NOT THERE", "subtitle": verdict.reason,
+                                    "tone": "bad"}, layer="hud")]
+            if verdict.suggestion:
+                fx.append(Effect("placement_suggest",
+                                 {"x": verdict.suggestion[0],
+                                  "y": verdict.suggestion[1]}, layer="guide"))
+            self.emit_effects(fx)
+        self._awaiting_turn_fx = True
+        return True
 
     # --- attract mode --------------------------------------------------------
     def _tick_attract(self, state: TableState) -> None:
