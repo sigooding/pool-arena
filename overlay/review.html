@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool Arena — review</title>
+<link rel="stylesheet" href="/src/board.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <div class="game" id="title">Review</div>
+        <div class="state" id="sub">loading recordings&hellip;</div>
+      </div>
+    </div>
+    <div class="bar-right">
+      <a class="icon btnlink" href="/manual.html">Manual</a>
+      <a class="icon btnlink" href="/scoreboard.html">Scoreboard</a>
+    </div>
+  </header>
+
+  <div class="alert" id="alert" hidden></div>
+
+  <main class="review">
+    <section class="sessions">
+      <div class="feed-head">Games played</div>
+      <ol class="session-list" id="sessions"></ol>
+    </section>
+
+    <section class="felt-wrap">
+      <canvas id="mini"></canvas>
+      <div class="felt-tag" id="felt-tag"></div>
+    </section>
+
+    <section class="side">
+      <div class="replay-controls">
+        <button id="prev" title="previous shot">&#9664;</button>
+        <button class="go" id="play">Play</button>
+        <button id="next" title="next shot">&#9654;</button>
+        <label class="speed">
+          <input type="range" id="speed" min="25" max="300" value="100">
+          <span id="speed-label">1.0x</span>
+        </label>
+      </div>
+      <div class="shot-caption" id="caption">Pick a game on the left.</div>
+      <div class="feed-head">Shots</div>
+      <ol class="feed" id="shots"></ol>
+    </section>
+  </main>
+
+  <section class="stats" id="stats" hidden></section>
+</div>
+<script type="module" src="/src/review.js"></script>
+</body>
+</html>

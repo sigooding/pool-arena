@@ -18,6 +18,7 @@ from .attract import AttractMode, IdleWatch
 from .ballset import AMERICAN, BallSet
 from .events import ShotDetector, ShotWindow
 from .geometry import Table
+from .recording import Recorder
 from .rules import Game, ShotContext, available, get_game
 from .server.ws import Hub
 from .types import Effect, TableState
@@ -39,6 +40,9 @@ class Engine:
     on_shot: Callable[[ShotWindow], None] | None = None
     #: how many shots can be taken back
     undo_depth: int = 50
+    #: where finished games are kept, so they can be watched back. None
+    #: turns recording off.
+    recordings: Path | None = None
     #: seconds of a still, unattended table before the attract mode starts.
     #: 0 turns it off. Generous on purpose: a player lining up a long shot can
     #: be motionless for a minute, and a table that lights up mid-stance is
@@ -57,6 +61,7 @@ class Engine:
         # is to keep the state that existed before, and put it back.
         self._undo: list[tuple[Game, dict[str, Any]]] = []
         self._redo: list[tuple[Game, dict[str, Any]]] = []
+        self.recorder = Recorder(self.recordings) if self.recordings else None
         self.idle = IdleWatch(self.idle_after)
         self.attract = AttractMode(table=self.table,
                                    broadcast=self.hub.broadcast,
@@ -89,8 +94,12 @@ class Engine:
                 f"{cls.title} needs {want} players, got {len(names)}: "
                 f"{', '.join(names)}")
 
+        if self.recorder:
+            self.recorder.finish()          # close any game left hanging
         self.game = cls(players=names, table=self.table, options=options or {},
                         ball_set=self.ball_set)
+        if self.recorder:
+            self.recorder.start(self.game, self.table, self.ball_set)
         self.detector.reset(self.detector.resting)
         self.history.clear()
         self._undo.clear()
@@ -184,6 +193,10 @@ class Engine:
         }
         self.history.append(record)
         self._append_log(record)
+        if self.recorder:
+            self.recorder.add_shot(record, window.events)
+            if result.game_over:
+                self.recorder.finish(result.winner)
         self._undo.append((snapshot, record))
         del self._undo[:-self.undo_depth]
         self._redo.clear()          # a new shot abandons any redo branch
@@ -274,6 +287,11 @@ class Engine:
             return {"ok": False, "error": "nothing to undo"}
         snapshot, record = self._undo.pop()
         self._redo.append((self._snapshot(self.game), record))
+        if self.recorder and self.recorder.session:
+            shots = self.recorder.session["shots"]
+            if shots:
+                shots.pop()
+                self.recorder._flush()
         self.game = snapshot
         if self.history:
             self.history.pop()

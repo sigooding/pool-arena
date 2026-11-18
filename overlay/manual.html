@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool Arena — manual</title>
+<link rel="stylesheet" href="/src/board.css">
+<link rel="stylesheet" href="/src/manual.css">
+</head>
+<body>
+<div class="app manual">
+
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <div class="game">Manual</div>
+        <div class="state">everything you need, at the table</div>
+      </div>
+    </div>
+    <div class="bar-right">
+      <a class="icon btnlink" href="/scoreboard.html">Scoreboard</a>
+      <a class="icon btnlink" href="/review.html">Review</a>
+    </div>
+  </header>
+
+  <nav class="manual-nav">
+    <a href="#start">Getting started</a>
+    <a href="#play">Playing</a>
+    <a href="#fix">Fixing a wrong score</a>
+    <a href="#games">The games</a>
+    <a href="#camera">Camera</a>
+    <a href="#projector">Projector</a>
+    <a href="#review">Review</a>
+    <a href="#trouble">When it goes wrong</a>
+  </nav>
+
+  <article class="doc">
+
+    <h2 id="start">Getting started</h2>
+    <p class="lede">Two things need teaching once: where the table is in the
+    camera picture, and — if you are projecting — where the table is on the
+    projector. They are separate, and doing one does nothing for the other.</p>
+
+    <ol class="steps">
+      <li><b>Point the camera at the table.</b> As high and central as the room
+        allows. Fix it to something solid: if it gets knocked, everything it
+        tells you afterwards is wrong.</li>
+      <li><b>Print the markers.</b> <em>Setup → Camera → Get the marker
+        sheet.</em> Cut out the four squares and tape each one flat on the
+        cloth just inside the corner it names, outer corner on the cushion
+        corner.</li>
+      <li><b>Calibrate.</b> <em>Setup → Camera → Calibrate from markers.</em>
+        Leave the markers taped down — then if the camera is ever nudged it
+        can fix itself.</li>
+      <li><b>Check it.</b> Open the projector page and press <kbd>b</kbd>. It
+        draws where it thinks each ball is. They should land on the real
+        balls. This is the only check that matters.</li>
+      <li><b>Pick a game and press Start.</b></li>
+    </ol>
+
+    <p class="note-box"><b>No markers to hand?</b> The same tab lets you tap
+    the four corners yourself. Use the magnifier and take your time: three
+    pixels of sloppiness costs about 5&nbsp;mm on the cloth, which is enough
+    to misjudge a ball hanging over a pocket.</p>
+
+    <h2 id="play">Playing</h2>
+    <p>Rack up and play. The table reads each shot once the balls stop, so
+    nothing needs pressing between shots. The scoreboard shows whose turn it
+    is, what each player has left, and a running feed of what happened.</p>
+    <table class="kv">
+      <tr><td>Change who is playing</td><td>Setup → Players</td></tr>
+      <tr><td>Change game</td><td>Setup → Game</td></tr>
+      <tr><td>Hand the table over manually</td><td>Setup → Game → Pass turn</td></tr>
+      <tr><td>Nobody playing</td><td>after a while the table starts playing
+        itself to draw people over; touch it and it stops</td></tr>
+    </table>
+
+    <h2 id="fix">Fixing a wrong score</h2>
+    <p>It will misread something eventually, especially before the detector is
+    tuned to your cloth and lights. Two controls, both on the scoreboard:</p>
+    <table class="kv">
+      <tr><td><b>Undo</b> (top bar)</td><td>takes back the last shot — the
+        score, whose turn it is, group assignments, two-shot state, even a
+        frame it wrongly called as won. Press it again to go further back.</td></tr>
+      <tr><td><b>+ / −</b> on a player card</td><td>sets a score by hand. Undo
+        restores the old score; only you know the right one.</td></tr>
+    </table>
+    <p>Undo rewinds the <em>score</em>, not the table. The balls stay where
+    they are, so the next shot is judged from the layout in front of you.</p>
+
+    <h2 id="games">The games</h2>
+    <table class="kv games-table">
+      <tr><td>8-Ball</td><td>American rules: called pocket on the 8</td></tr>
+      <tr><td>English 8-Ball</td><td>UK rules: <b>two shots</b> after a foul,
+        no called pocket</td></tr>
+      <tr><td>Blackball</td><td>international UK code: one shot with a
+        <b>free shot</b> after a foul</td></tr>
+      <tr><td>9-Ball</td><td>lowest ball first, pot the 9 — needs numbered
+        balls</td></tr>
+      <tr><td>Cut-Throat</td><td>three players, five balls each — needs
+        numbered balls</td></tr>
+      <tr><td>Killer</td><td>pot on your turn or lose a life</td></tr>
+      <tr><td>Hotspots</td><td>roll object balls through the lit zones</td></tr>
+      <tr><td>Pocket Roulette</td><td>the table picks which pocket you must use</td></tr>
+      <tr><td>Position Drill</td><td>pot, then stop the cue ball in the ring —
+        graded in millimetres</td></tr>
+    </table>
+    <p class="note-box">With <b>reds and yellows</b>, 9-Ball and Cut-Throat are
+    unavailable — no camera can tell one red from another, so rather than
+    guess, they are switched off. Everything else plays normally.</p>
+
+    <h2 id="camera">Camera</h2>
+    <p>Recalibrate whenever the camera moves. With the markers still taped
+    down that is one button; without them it is four careful taps.</p>
+    <table class="kv">
+      <tr><td>Average error under 5&nbsp;mm</td><td>good</td></tr>
+      <tr><td>5–15&nbsp;mm</td><td>usable, but balls near a pocket may be
+        judged wrongly</td></tr>
+      <tr><td>Over 15&nbsp;mm</td><td>do it again</td></tr>
+    </table>
+    <p>If balls go missing in dark corners, light the table more evenly before
+    changing any setting. If you have a Kinect, <code>--depth-balls</code>
+    finds balls by shape instead of colour and does not care about light at
+    all.</p>
+
+    <h2 id="projector">Projector</h2>
+    <p>Open the projector page on the projector's screen and press
+    <kbd>f</kbd> for fullscreen. Then <em>Setup → Projector</em> and nudge the
+    four corners of the outline onto the real corners of the table.</p>
+    <table class="kv">
+      <tr><td><kbd>c</kbd></td><td>calibration grid on and off</td></tr>
+      <tr><td><kbd>b</kbd></td><td>show where it thinks the balls are</td></tr>
+      <tr><td><kbd>f</kbd></td><td>fullscreen</td></tr>
+      <tr><td><kbd>a</kbd></td><td>preview the attract mode</td></tr>
+      <tr><td><kbd>h</kbd></td><td>list all the keys</td></tr>
+    </table>
+    <p>No projector? Everything still works — the guides appear on the
+    scoreboard's table view instead.</p>
+
+    <h2 id="review">Review</h2>
+    <p>Every game is recorded. <a href="/review.html">Review</a> plays them
+    back shot by shot, animating the path each ball actually took, with the
+    figures that tell you something you can act on:</p>
+    <table class="kv">
+      <tr><td>Pot rate</td><td>are you making balls</td></tr>
+      <tr><td>Fouls, and which kind</td><td>how you hand the table over</td></tr>
+      <tr><td>Cue ball moved</td><td>position play — less is usually better</td></tr>
+      <tr><td>Best run</td><td>the one everyone wants to know</td></tr>
+    </table>
+    <p><kbd>space</kbd> plays and pauses, arrow keys step a shot at a time.</p>
+
+    <h2 id="trouble">When it goes wrong</h2>
+    <table class="kv">
+      <tr><td>Discs are offset at one end of the table</td>
+          <td>calibration — redo it, ideally with markers</td></tr>
+      <tr><td>Balls missing in the corners</td>
+          <td>uneven lighting, or the camera cannot see them</td></tr>
+      <tr><td>A ball vanishes and scores as potted</td>
+          <td>glare or a shadow edge — press Undo, then fix the lighting</td></tr>
+      <tr><td>Everything drifted after a knock</td>
+          <td>recalibrate; leave the markers up next time</td></tr>
+      <tr><td>Nothing is detected at all</td>
+          <td>restart with an empty table so it can learn the cloth</td></tr>
+      <tr><td>It says the view is obstructed</td>
+          <td>something is over the table — that is working as intended</td></tr>
+    </table>
+
+  </article>
+</div>
+</body>
+</html>

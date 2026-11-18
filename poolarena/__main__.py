@@ -18,6 +18,7 @@ from pathlib import Path
 from .ballset import get_ball_set
 from .camera import CameraService, probe
 from . import models as model_store
+from . import recording as rec
 from .engine import Engine
 from .geometry import Calibration, Table
 from .rules import available
@@ -27,6 +28,7 @@ from .types import TableState
 ROOT = Path(__file__).resolve().parent.parent
 OVERLAY = ROOT / "overlay"
 CONFIG = ROOT / "config"
+RECORDINGS = ROOT / "recordings"
 
 
 def load_ball_set(args):
@@ -96,6 +98,7 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
         return model_store.try_model(m.get("weights", ""), sample=frame)
 
     routes["/api/detector"] = detector_status
+    routes["/api/sessions"] = lambda: {"sessions": rec.list_sessions(RECORDINGS)}
 
     posts = {
         "/api/camera/open": lambda m: cam.open(m.get("spec", "auto")),
@@ -111,6 +114,10 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
         "/api/detector/test": test_detector,
         "/api/camera/markers": lambda m: cam.calibrate_markers(),
         "/api/camera/marker_sheet": lambda m: _marker_sheet(),
+        "/api/session": lambda m: (rec.load_session(RECORDINGS, m.get("id", ""))
+                                   or {"ok": False, "error": "no such session"}),
+        "/api/session/delete": lambda m: {
+            "ok": rec.delete_session(RECORDINGS, m.get("id", ""))},
     }
     httpd = serve(engine_hub, OVERLAY, port=port, http_routes=routes,
                   post_routes=posts)
@@ -140,6 +147,7 @@ def cmd_demo(args) -> int:
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
                     idle_after=args.idle_after,
                     projector=not args.no_projector,
+                    recordings=None if args.no_record else RECORDINGS,
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -308,6 +316,7 @@ def cmd_run(args) -> int:
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
                     idle_after=args.idle_after,
                     projector=not args.no_projector,
+                    recordings=None if args.no_record else RECORDINGS,
                     log_path=Path(args.log) if args.log else None)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
 
@@ -453,6 +462,9 @@ def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="table config json")
     common.add_argument("--size", default="8ft", help="7ft|8ft|8ft-pro|9ft|10ft|snooker")
+    common.add_argument("--no-record", action="store_true",
+                        help="do not keep a recording of the game. Recordings "
+                             "are what the Review page plays back.")
     common.add_argument("--no-projector", action="store_true",
                         help="scoring only. The guides are drawn on the "
                              "scoreboard's table view instead of the cloth.")

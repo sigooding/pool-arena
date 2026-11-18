@@ -89,7 +89,13 @@ colour-coded shot feed:
   cloth calibrate the camera to about 1 mm — better than a careful human
   click and far better than a typical one — and if you leave them up, a
   camera that gets knocked re-calibrates itself.
-- **165 tests** covering geometry, shot detection, every rule set and the full
+- **Every game recorded, and playable back.** The Review page replays a
+  session shot by shot, animating the path each ball actually took, with the
+  figures that tell you where frames are going: pot rate, which foul you
+  commit most, how far you move the cue ball, best run.
+- **A manual built into the app**, at `/manual.html`, so it is there at the
+  table without a phone or a network.
+- **177 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

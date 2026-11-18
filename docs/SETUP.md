@@ -129,6 +129,33 @@ Depth and colour together is the strong combination: depth says where, colour
 says which. Balls that colour loses to a shadow still appear, marked
 located-but-unidentified, so they are not scored as potted.
 
+## Watching games back
+
+Every game is recorded to `recordings/` as it is played — one JSON file per
+frame, written shot by shot so a session that ends unexpectedly is still
+usable. `--no-record` turns it off.
+
+Open **Review** from the scoreboard. Pick a game and it replays shot by
+shot, animating the path each ball actually took, because the detector
+samples positions while the balls are rolling. Space plays and pauses, the
+arrow keys step a shot at a time.
+
+The figures are chosen to answer "where am I losing frames" rather than to
+fill a page:
+
+| | why it is there |
+|---|---|
+| Pot rate | shots that potted something, not balls potted — two on one shot is one shot |
+| Fouls, and which kind | how you hand the table over, and the habit to fix first |
+| Cue ball moved | the closest single number to position play; good position means moving it less and still having a shot |
+| Best run | the one everybody wants to know |
+
+## The manual
+
+There is a manual inside the app at `/manual.html`, linked from the
+scoreboard. It covers the same ground as these docs in the order you need it
+at the table, and it works with no network.
+
 ## If something is wrong
 
 | Symptom | Likely cause |

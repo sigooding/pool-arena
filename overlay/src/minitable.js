@@ -4,7 +4,7 @@
 // real table costs one canvas and makes the scoreboard worth looking at: you
 // can see the layout, whose turn it is, and what just dropped, from the rail.
 
-import { CLOTH, CLOTH_DARK, RAIL, drawBall } from './balls.js';
+import { CLOTH, CLOTH_DARK, RAIL, ballStyle, drawBall } from './balls.js';
 
 /** Darken or lighten a hex colour, for the cloth's vignette. */
 function shade(hex, amount) {
@@ -27,6 +27,8 @@ export class MiniTable {
     // the only place a player can see which pocket they have been given or
     // which zones are live, so the games that depend on them stay playable.
     this.guides = { zones: [], pockets: [], marked: [], aim: null };
+    //: paths drawn behind the balls during a replay, as {n, points, upto}
+    this.traces = [];
     this.ghosts = [];               // recently pocketed, fading out
     this._raf = null;
     // Measure whenever the box actually changes rather than once at startup:
@@ -99,6 +101,34 @@ export class MiniTable {
   }
 
   pos(x, y) { return [x * this.scale, y * this.scale]; }
+
+  setTraces(traces) {
+    this.traces = traces || [];
+    this.draw();
+  }
+
+  /** The path each ball actually took, revealed as the replay advances. */
+  drawTraces(ctx) {
+    for (const t of this.traces) {
+      const pts = t.points || [];
+      const upto = Math.max(2, Math.min(pts.length, t.upto ?? pts.length));
+      if (upto < 2) continue;
+      const { fill } = ballStyle(t.n);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let i = 1; i < upto; i++) {
+        const age = 1 - i / upto;
+        ctx.globalAlpha = 0.25 + 0.55 * (1 - age);
+        ctx.strokeStyle = fill;
+        ctx.lineWidth = Math.max(1.5, this.scale * 22);
+        const a = this.pos(pts[i - 1][0], pts[i - 1][1]);
+        const b = this.pos(pts[i][0], pts[i][1]);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
 
   setGuides(g) {
     this.guides = { zones: [], pockets: [], marked: [], aim: null, ...g };
@@ -237,6 +267,7 @@ export class MiniTable {
     }
 
     this.drawGuides(ctx);
+    this.drawTraces(ctx);
 
     // balls that just dropped, fading
     const now = performance.now();
