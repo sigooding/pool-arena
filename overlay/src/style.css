@@ -64,57 +64,6 @@ body.projector:hover { cursor: default; }
 }
 .panel span { color: var(--dim); font-size: 12px; }
 
-/* --- scoreboard ------------------------------------------------------- */
-body.board {
-  cursor: default;
-  overflow: auto;
-  background: #060a12;
-  padding: 18px;
-}
-.board h1 {
-  margin: 0 0 4px;
-  font-size: 20px;
-  letter-spacing: 0.02em;
-}
-.board .sub { color: var(--dim); font-size: 12px; margin-bottom: 18px; }
-.board .error {
-  margin: 0 0 14px;
-  padding: 10px 13px;
-  border: 1px solid #7f1d1d;
-  border-radius: 9px;
-  background: #2a0f14;
-  color: #fca5a5;
-  font-size: 13px;
-}
-.players { display: grid; gap: 10px; margin-bottom: 20px; }
-.player {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 16px;
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  background: #0b1220;
-}
-.player.turn { border-color: #fbbf24; box-shadow: 0 0 0 1px #fbbf2455 inset; }
-.player .name { flex: 1; font-weight: 600; font-size: 17px; }
-.player .score { font: 800 30px/1 system-ui; font-variant-numeric: tabular-nums; }
-.player .meta { color: var(--dim); font-size: 12px; }
-.player.out { opacity: 0.4; }
-.tag {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  padding: 3px 7px; border-radius: 999px; background: #1e293b; color: #93c5fd;
-}
-.log { font: 12px/1.7 ui-monospace, monospace; color: var(--dim); }
-.log div { padding: 2px 0; border-bottom: 1px solid #0f172a; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-button {
-  font: 600 13px system-ui; color: var(--ink);
-  background: #162034; border: 1px solid #263349;
-  border-radius: 9px; padding: 10px 14px; cursor: pointer;
-}
-button:hover { background: #1d2a44; }
-button.primary { background: #1d4ed8; border-color: #2563eb; }
-select, input {
-  font: 13px system-ui; color: var(--ink);
-  background: #0b1220; border: 1px solid #263349;
-  border-radius: 9px; padding: 9px 11px;
-}
+/* The scoreboard lives on its own page with its own stylesheet (board.css):
+   the projector needs pure black and no chrome, a tablet needs the opposite,
+   and sharing one sheet made both worse. */

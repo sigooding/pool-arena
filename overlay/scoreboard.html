@@ -2,26 +2,59 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pool Arena — scoreboard</title>
-<link rel="stylesheet" href="/src/style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0C0B">
+<title>Pool Arena</title>
+<link rel="stylesheet" href="/src/board.css">
 </head>
-<body class="board">
-  <h1 id="title">Pool Arena</h1>
-  <div class="sub" id="sub">connecting…</div>
-  <div class="error" id="error" hidden></div>
+<body>
+<div class="app">
 
-  <div class="controls">
-    <select id="game"></select>
-    <input id="players" value="Player 1, Player 2" size="24">
-    <button class="primary" id="start">Start game</button>
-    <button id="pass">Pass turn</button>
-    <button id="boom">Test effect</button>
-  </div>
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <div class="game" id="game-title">Pool Arena</div>
+        <div class="state" id="game-state">connecting</div>
+      </div>
+    </div>
+    <div class="bar-right">
+      <div class="shotno"><span id="shot-no">—</span><small>shot</small></div>
+      <button class="icon" id="toggle-setup" aria-expanded="false" title="Game setup">Setup</button>
+    </div>
+  </header>
 
-  <div class="players" id="players-list"></div>
-  <div class="log" id="log"></div>
+  <div class="alert" id="alert" hidden></div>
 
-  <script type="module" src="/src/board.js"></script>
+  <section class="setup" id="setup" hidden>
+    <div class="games" id="games"></div>
+    <div class="roster">
+      <label for="players">Players</label>
+      <input id="players" value="Player 1, Player 2" autocomplete="off" spellcheck="false">
+      <span class="hint" id="roster-hint"></span>
+    </div>
+    <div class="setup-actions">
+      <button class="go" id="start">Start game</button>
+      <button id="pass">Pass turn</button>
+      <button id="boom">Test effect</button>
+    </div>
+  </section>
+
+  <main class="grid">
+    <section class="felt-wrap">
+      <canvas id="mini"></canvas>
+      <div class="felt-tag" id="felt-tag">live</div>
+    </section>
+
+    <section class="players" id="players-list"></section>
+
+    <section class="feed-panel">
+      <div class="feed-head">Shot feed</div>
+      <ol class="feed" id="feed"></ol>
+    </section>
+  </main>
+
+</div>
+<script type="module" src="/src/board.js"></script>
 </body>
 </html>

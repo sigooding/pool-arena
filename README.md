@@ -19,7 +19,12 @@ python -m poolarena demo
 Then open <http://localhost:8777/> for the projector view and
 <http://localhost:8777/scoreboard.html> for the tablet.
 
-![The overlay: zones, aiming line with ghost ball, pocket glow, particles](docs/overlay.png)
+![The projector overlay: aiming line with ghost ball and tangent line, lit pocket, particles](docs/overlay.png)
+
+The tablet on the rail shows the live table, the roster as actual balls, and a
+colour-coded shot feed:
+
+![The scoreboard: live top-down table, player cards, shot feed](docs/scoreboard.png)
 
 ## What works today
 
@@ -32,9 +37,11 @@ Then open <http://localhost:8777/> for the projector view and
   lightning, on-cloth banners.
 - **Four-corner keystone calibration** in the browser, so the projector does
   not have to be square to the table.
+- **A tablet scoreboard** with a live top-down table view, drawn from the same
+  state stream, that works from a phone up to a wall display.
 - **A simulator** good enough to develop and demo the whole system without a
   camera, a projector or a table.
-- **41 tests** covering geometry, shot detection, every rule set and the full
+- **44 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

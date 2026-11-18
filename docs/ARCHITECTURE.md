@@ -85,8 +85,15 @@ A browser page, fullscreen on the projector output.
 - `effects.js` — every animation, keyed by name. Effects draw in millimetres
   and are handed the live scene, so an effect attached to a ball follows it.
 - `main.js` — websocket, render loop, layer order, ball trails, debug view.
-- `board.js` — the tablet scoreboard, a separate page so the projector shows
-  only the table.
+- `board.js` + `board.css` — the tablet scoreboard, a separate page with its
+  own stylesheet. The projector needs pure black and no chrome; a tablet needs
+  the opposite, and sharing one sheet made both worse.
+- `balls.js` — the design system. Every colour in the interface is a real ball
+  colour, and both the tablet's live table and the projector's alignment view
+  draw balls through the same function, so a 9-ball looks like a 9-ball in
+  both places.
+- `minitable.js` — the live top-down table on the tablet, fed by the same
+  state stream the projector uses.
 
 **Layer order is physical, not cosmetic.** `guide` draws under the balls
 (aiming lines, pocket rings, zones) so it reads as markings on the cloth; `fx`

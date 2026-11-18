@@ -1,0 +1,359 @@
+/* The tablet view. Designed for a device propped on the rail: read at arm's
+   length, operated with chalk on your fingers, in a dim room.
+
+   Everything is keyed off the balls — see balls.js. No generic blue accent. */
+
+:root {
+  --bg:        #0A0C0B;
+  --surface:   #111512;
+  --surface-2: #171C19;
+  --line:      #232A26;
+  --ink:       #ECEFEA;
+  --dim:       #7E8A83;
+  --cloth:     #1B6E54;
+  --cloth-lit: #27A37C;
+  --chalk:     #2F6F8F;
+  --gold:      #F2B705;
+  --red:       #DC2626;
+  --good:      #3FB950;
+
+  /* One ramp, used everywhere, so sizes relate to each other */
+  --t-label: 10.5px;
+  --r: 14px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* Any element here that sets its own `display` would otherwise beat the user
+   agent's [hidden] rule, which is how the setup drawer ended up permanently
+   open. Assert it once, globally. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+.app {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: clamp(10px, 2vw, 22px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100vh;
+}
+
+/* --- label convention: every small uppercase label in the UI --------------- */
+.state, small, label, .feed-head, .hint, .tag, .felt-tag {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 650;
+}
+
+/* --- top bar -------------------------------------------------------------- */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+
+/* The mark is a cue ball and an 8 ball, which is all the logo this needs. */
+.mark {
+  position: relative;
+  width: 40px; height: 40px;
+  flex: none;
+}
+.mark::before, .mark::after {
+  content: ''; position: absolute; border-radius: 50%;
+}
+.mark::before {
+  width: 26px; height: 26px; left: 0; top: 7px;
+  background: radial-gradient(circle at 32% 30%, #fff, #D9D4C6 70%, #9A958A);
+}
+.mark::after {
+  width: 30px; height: 30px; right: 0; top: 4px;
+  background: radial-gradient(circle at 32% 30%, #4A4A52, #121216 65%);
+  box-shadow: inset 0 0 0 1px #000;
+}
+
+.game {
+  font-size: clamp(21px, 3.4vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.state { color: var(--dim); margin-top: 3px; }
+.state.live::before {
+  content: ''; display: inline-block;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--good); margin-right: 7px;
+  animation: pulse 2s ease-in-out infinite;
+}
+.state.off::before {
+  content: ''; display: inline-block;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red); margin-right: 7px;
+}
+@keyframes pulse { 50% { opacity: 0.25; } }
+
+.bar-right { display: flex; align-items: center; gap: 12px; }
+.shotno {
+  text-align: right; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.shotno span { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }
+.shotno small { display: block; color: var(--dim); margin-top: 4px; }
+
+/* --- buttons: big enough to hit with a cue in your other hand -------------- */
+button {
+  font: 650 14px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 14px 18px;
+  min-height: 48px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.06s;
+}
+button:hover { background: #1E2521; }
+button:active { transform: translateY(1px); }
+button.go {
+  background: var(--cloth);
+  border-color: var(--cloth-lit);
+  color: #fff;
+  font-weight: 750;
+}
+button.go:hover { background: var(--cloth-lit); }
+button.icon { padding: 12px 15px; min-height: 42px; }
+
+/* --- alert ---------------------------------------------------------------- */
+.alert {
+  padding: 13px 16px;
+  border-radius: var(--r);
+  border: 1px solid #5B1A1A;
+  background: linear-gradient(#2A1113, #200D0F);
+  color: #FCA5A5;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* --- setup drawer --------------------------------------------------------- */
+.setup {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.games { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: flex; flex-direction: column; gap: 3px;
+  align-items: flex-start;
+  padding: 11px 15px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  cursor: pointer;
+  min-height: 0;
+  text-align: left;
+}
+.chip b { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.chip i {
+  font-style: normal; font-size: 11.5px; color: var(--dim);
+  letter-spacing: 0; text-transform: none; font-weight: 500;
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--cloth-lit);
+  background: linear-gradient(#1A3A30, #15271F);
+}
+.chip[aria-pressed="true"] i { color: #9FD9C4; }
+
+.roster { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.roster label { color: var(--dim); }
+input {
+  flex: 1 1 260px;
+  font: 15px ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  background: #0C100E;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 13px 14px;
+  min-height: 48px;
+}
+input:focus { outline: 2px solid var(--cloth-lit); outline-offset: -1px; }
+.hint { color: var(--dim); }
+.setup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* --- main grid ------------------------------------------------------------ */
+/* Fill the viewport: a tablet propped on the rail should show the table as
+   large as it will go, not a letterboxed strip with dead space beneath. */
+.grid {
+  display: grid;
+  /* A 2:1 table next to a sidebar can never fill a 4:3 tablet, so the feed
+     goes under the table rather than leaving a third of the screen empty.
+       [ table ][ players ]
+       [ feed            ] */
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 28%, 400px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "felt    players"
+    "feed    feed";
+  gap: 14px;
+  align-items: start;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.felt-wrap   { grid-area: felt; }
+.players     { grid-area: players; }
+.feed-panel  { grid-area: feed; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "felt" "players" "feed";
+  }
+}
+
+/* The rail hugs the cloth. Stretching it to the row height turns the wood
+   into a large brown slab with a table floating in it. */
+.felt-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
+  padding: 10px;
+  min-height: 0;
+  border-radius: 18px;
+  /* the rail: wood, not another grey card */
+  background: linear-gradient(#4A2E1C, #2E1B10);
+  box-shadow: inset 0 1px 0 #6B452C, 0 10px 30px rgba(0,0,0,0.45);
+}
+/* JS sets the pixel size from whichever of width or height runs out first. */
+#mini { display: block; border-radius: 9px; }
+.felt-tag {
+  position: absolute; top: 18px; right: 20px;
+  color: #BFE8D7; opacity: 0.75;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+
+/* --- players -------------------------------------------------------------- */
+.players { display: grid; gap: 9px; align-content: start; min-width: 0; }
+
+.player {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 14px 16px 14px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  overflow: hidden;
+}
+/* accent rail down the left edge, lit for whoever is at the table */
+.player::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--line);
+}
+.player.turn { border-color: #4A3A12; background: linear-gradient(#1C1810, var(--surface)); }
+.player.turn::before { background: var(--gold); box-shadow: 0 0 14px var(--gold); }
+.player.out { opacity: 0.42; }
+.player.out .name { text-decoration: line-through; }
+
+.name {
+  font-size: 19px; font-weight: 700; letter-spacing: -0.02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.score {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  font-size: 40px; font-weight: 800; line-height: 1;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+.player.turn .score { color: var(--gold); }
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 22px; }
+.tag {
+  padding: 3px 8px; border-radius: 999px;
+  background: #1E2521; color: #9FD9C4;
+  border: 1px solid var(--line);
+}
+.lives { display: flex; gap: 3px; }
+.life { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
+.life.spent { background: #3A2022; }
+
+/* --- the ball chips ------------------------------------------------------- */
+.ball-row { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.ball {
+  --size: 26px;
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  display: inline-grid; place-items: center;
+  font: 700 calc(var(--size) * 0.44)/1 ui-sans-serif, system-ui, sans-serif;
+  color: #15161A;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.65), rgba(255,255,255,0) 42%),
+    var(--ball);
+  box-shadow: inset 0 -2px 4px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.5);
+  flex: none;
+}
+/* a stripe is a white ball with a coloured band, not a coloured ball */
+.ball.striped {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.65), rgba(255,255,255,0) 42%),
+    linear-gradient(#F4F1E8 0 27%, var(--ball) 27% 73%, #F4F1E8 73%);
+}
+.ball::after {
+  content: ''; position: absolute;
+}
+
+/* --- shot feed ------------------------------------------------------------ */
+.feed-head { color: var(--dim); padding: 2px 2px 0; }
+.feed {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  min-height: 120px;
+}
+.feed li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px;
+  border-radius: 11px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  font-size: 13.5px;
+}
+.feed li .who {
+  font-weight: 700; font-size: 12.5px;
+  min-width: 68px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.feed li .what { color: #C3CCC6; flex: 1; min-width: 0; }
+.feed li.pot   { border-left-color: var(--good); }
+.feed li.foul  { border-left-color: var(--red); }
+.feed li.foul .what { color: #FCA5A5; }
+.feed li.win   { border-left-color: var(--gold); background: linear-gradient(#1C1810, var(--surface)); }
+.feed li.safe  { border-left-color: var(--chalk); }
+.feed li.empty { justify-content: center; color: var(--dim); border-style: dashed; }
+
+@media (max-width: 560px) {
+  .score { font-size: 32px; }
+  .game { font-size: 20px; }
+}
