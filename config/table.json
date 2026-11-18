@@ -5,7 +5,7 @@
   "ball_radius": 28.6,
   "pocket_capture": 70.0,
   "_comment": "Playing surface inside the cushions, in millimetres. Measure your own table: nominal sizes vary by manufacturer. Sizes known by name: 7ft 8ft 8ft-pro 9ft 10ft snooker.",
-  "ball_set": "american",
+  "ball_set": "english",
   "_ball_set": "american = numbered 1-15. english = reds and yellows (UK blackball), which has no numbers, so 9-ball and cut-throat are unavailable and everything else plays the same.",
   "cloth": "#8FB7D9",
   "_cloth": "Your cloth colour as hex. The projector multiplies its light by what the cloth reflects, so the palette is chosen from this. Pale blue: #8FB7D9. Powder blue: #6E9BC5. Tournament green: #1B6E54. Also settable with --cloth."
