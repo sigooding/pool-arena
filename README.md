@@ -67,7 +67,11 @@ colour-coded shot feed:
 - **An attract mode.** Leave the table alone and it starts playing a ghost
   game of pool with itself, captioned with how to begin and what games it
   knows. A ball moving — or an arm over the cloth — clears it instantly.
-- **101 tests** covering geometry, shot detection, every rule set and the full
+- **A detector installer in the UI.** Setup → Detector installs YOLO support
+  and takes a trained model from a link or a file, then tests it on a real
+  camera frame. You do not need a GPU: detection runs once per shot on a
+  still table. It says plainly that a `.pt` file runs code when loaded.
+- **116 tests** covering geometry, shot detection, every rule set and the full
   pipeline end to end.
 
 ## What doesn't, yet

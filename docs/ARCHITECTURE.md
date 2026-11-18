@@ -152,6 +152,22 @@ than from live `shot` messages. That is what makes a page opened in the middle
 of a frame show what has happened, and it means undo needs no special case in
 the client: the list simply comes back shorter.
 
+## Swapping the detector
+
+`poolarena/models.py` installs and selects detector models. The colour
+detector is the default and needs nothing; a YOLO model is an opt-in that
+pulls in torch and runs a third-party checkpoint.
+
+That second part is the reason this module is cautious rather than
+convenient. A `.pt` file is a pickle, so loading one executes code from the
+file: an installer that quietly fetched and ran one would be a supply-chain
+hole with a friendly button on it. So downloads are restricted to an
+allowlist of hosts, the URL is shown before anything is fetched, a local
+path is always offered as an alternative, filenames are flattened so a
+crafted name cannot escape `weights/`, and the UI states in plain words what
+loading a checkpoint does. None of that makes an untrusted model safe; it
+makes the decision visible, which is as far as software can honestly go.
+
 ## Attract mode
 
 `poolarena/attract.py` runs a second simulator on a daemon thread and streams

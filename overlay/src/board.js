@@ -325,6 +325,7 @@ el('tabs').onclick = (e) => {
   // outline is on the cloth exactly while you are looking at these controls.
   send({ type: 'calibrate', on: want === 'projector' });
   if (want === 'camera') refreshCamera();
+  if (want === 'detector') refreshDetector();
 };
 el('pass').onclick = () => send({ type: 'next_turn' });
 el('undo').onclick = () => send({ type: 'undo' });
@@ -370,6 +371,133 @@ el('calib-reset').onclick = () => send({ type: 'projector_nudge', reset: true })
 el('calib-done').onclick = () => {
   send({ type: 'calibrate', on: false });
   el('tabs').querySelector('[data-tab="game"]').click();
+};
+
+// --- detector -------------------------------------------------------------
+// Everything here is explicit on purpose. Installing a model means fetching
+// somebody else's code and running it, so nothing is downloaded, selected or
+// enabled without a press, and the page says what it is about to do.
+let detector = { detector: 'color', weights: '', installed: [], runtime: {} };
+
+async function refreshDetector() {
+  try { detector = await api('/api/detector'); }
+  catch (e) { el('det-status').textContent = String(e); return; }
+
+  const rt = detector.runtime || {};
+  const box = el('det-status');
+  const bits = [`Using the ${detector.detector === 'yolo' ? 'YOLO' : 'colour'} detector.`];
+  if (detector.detector === 'yolo' && detector.weights) {
+    bits.push(`Model: ${detector.weights.split(/[\\/]/).pop()}.`);
+  }
+  bits.push(rt.ready
+    ? `YOLO support installed (torch ${rt.torch_version || '?'}, running on ${rt.device}${rt.cuda ? '' : ' — no GPU found'}).`
+    : 'YOLO support is not installed.');
+  box.textContent = bits.join(' ');
+  box.className = 'cam-status ' + (detector.detector === 'yolo' && !rt.ready ? 'bad' : 'ready');
+
+  el('use-color').setAttribute('aria-pressed', String(detector.detector !== 'yolo'));
+  el('use-yolo').setAttribute('aria-pressed', String(detector.detector === 'yolo'));
+  el('yolo-panel').hidden = detector.detector !== 'yolo';
+  el('runtime-hint').textContent = rt.ready
+    ? 'already installed' : 'about 2-3 GB, mostly PyTorch';
+  el('install-runtime').disabled = !!rt.ready;
+  renderModels();
+}
+
+function renderModels() {
+  const list = el('model-list');
+  list.textContent = '';
+  if (!detector.installed.length) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = 'No models yet. Add one above, or drop a .pt file into '
+      + detector.weights_dir + ' and reopen this tab.';
+    list.appendChild(p);
+    return;
+  }
+  for (const m of detector.installed) {
+    const row = document.createElement('div');
+    row.className = 'model-row' + (m.path === detector.weights ? ' active' : '');
+    const name = document.createElement('span');
+    name.className = 'mname';
+    name.textContent = m.name;
+    const size = document.createElement('span');
+    size.className = 'msize';
+    size.textContent = m.size_mb + ' MB';
+    const use = document.createElement('button');
+    use.textContent = m.path === detector.weights ? 'In use' : 'Use this';
+    use.disabled = m.path === detector.weights;
+    use.onclick = async () => {
+      await api('/api/detector/select', { detector: 'yolo', weights: m.path });
+      await refreshDetector();
+      el('test-model').disabled = false;
+    };
+    row.append(name, size, use);
+    list.appendChild(row);
+  }
+  el('test-model').disabled = !detector.weights;
+}
+
+el('use-color').onclick = async () => {
+  await api('/api/detector/select', { detector: 'color' });
+  await refreshDetector();
+};
+el('use-yolo').onclick = () => {
+  el('yolo-panel').hidden = false;
+  el('use-yolo').setAttribute('aria-pressed', 'true');
+  el('use-color').setAttribute('aria-pressed', 'false');
+};
+
+el('install-runtime').onclick = async () => {
+  const btn = el('install-runtime');
+  btn.disabled = true;
+  el('det-status').className = 'cam-status';
+  el('det-status').textContent = 'Installing ultralytics and PyTorch. This is a '
+    + 'few gigabytes and can take several minutes — leave this page open.';
+  const r = await api('/api/detector/install_runtime', {});
+  if (!r.ok) {
+    el('det-status').className = 'cam-status bad';
+    el('det-status').textContent = 'Install failed. Run this in a terminal: '
+      + (r.command || 'pip install ultralytics') + (r.log ? '  —  ' + r.log : '');
+    btn.disabled = false;
+    return;
+  }
+  await refreshDetector();
+};
+
+el('install-model').onclick = async () => {
+  const src = el('model-src').value.trim();
+  if (!src) return;
+  el('det-status').className = 'cam-status';
+  el('det-status').textContent = 'Fetching ' + src + ' …';
+  const r = await api('/api/detector/install_model', { source: src });
+  if (!r.ok) {
+    el('det-status').className = 'cam-status bad';
+    el('det-status').textContent = r.error;
+    return;
+  }
+  el('model-src').value = '';
+  await api('/api/detector/select', { detector: 'yolo', weights: r.path });
+  await refreshDetector();
+  el('det-status').textContent = `Added ${r.name} (${r.size_mb} MB) and selected it. `
+    + 'Test it on the camera before a match.';
+};
+
+el('test-model').onclick = async () => {
+  el('det-status').className = 'cam-status';
+  el('det-status').textContent = 'Loading the model and running one frame…';
+  const r = await api('/api/detector/test', { weights: detector.weights });
+  if (!r.ok) {
+    el('det-status').className = 'cam-status bad';
+    el('det-status').textContent = r.error
+      + (r.install_command ? '  —  ' + r.install_command : '');
+    return;
+  }
+  el('det-status').className = 'cam-status ready';
+  el('det-status').textContent = r.found === undefined
+    ? `Model loads on ${r.device}. Connect a camera to try it on a real frame.`
+    : `Found ${r.found} balls in ${r.ms} ms on ${r.device}`
+      + (r.numbers && r.numbers.length ? ` (numbers: ${r.numbers.join(', ')})` : '');
 };
 
 // --- camera calibration ---------------------------------------------------

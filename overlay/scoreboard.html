@@ -38,6 +38,7 @@
       <button data-tab="players">Players</button>
       <button data-tab="projector">Projector</button>
       <button data-tab="camera">Camera</button>
+      <button data-tab="detector">Detector</button>
     </nav>
 
     <div class="tab" data-panel="game">
@@ -104,6 +105,54 @@
           <img id="cam-img" alt="camera view">
           <canvas id="cam-overlay"></canvas>
         </div>
+      </div>
+    </div>
+
+    <div class="tab" data-panel="detector" hidden>
+      <p class="note">
+        How balls are found in the picture. <strong>Colour</strong> needs
+        nothing and works on a well-lit table. <strong>YOLO</strong> uses a
+        model trained on real pool footage and copes better with a tight rack
+        and poor light, at the cost of a large download.
+      </p>
+
+      <div class="cam-status" id="det-status">checking&hellip;</div>
+
+      <div class="det-choice">
+        <button class="chip" id="use-color" aria-pressed="true">
+          <b>Colour detector</b><i>no dependencies, no download</i>
+        </button>
+        <button class="chip" id="use-yolo" aria-pressed="false">
+          <b>YOLO model</b><i>needs ultralytics and a trained model</i>
+        </button>
+      </div>
+
+      <div id="yolo-panel" hidden>
+        <div class="warn-box">
+          <strong>Read this before installing a model.</strong>
+          A <code>.pt</code> file is a pickled Python object, and loading one
+          <em>runs code from that file</em>. Installing a model from the
+          internet means running a stranger's program on this machine. Only
+          use models from a source you actually trust, and prefer downloading
+          the file yourself and installing it from a path.
+        </div>
+
+        <div class="setup-actions">
+          <button class="go" id="install-runtime">Install YOLO support</button>
+          <span class="hint" id="runtime-hint"></span>
+        </div>
+
+        <label class="field">
+          <span>Model — a GitHub/Hugging Face link, or a file on this PC</span>
+          <input id="model-src" placeholder="https://github.com/…/best.pt   or   C:\models\best.pt"
+                 autocomplete="off" spellcheck="false">
+        </label>
+        <div class="setup-actions">
+          <button id="install-model">Add model</button>
+          <button id="test-model" disabled>Test on the camera</button>
+        </div>
+
+        <div class="model-list" id="model-list"></div>
       </div>
     </div>
 

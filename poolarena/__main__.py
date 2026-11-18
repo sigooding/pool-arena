@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .ballset import get_ball_set
 from .camera import CameraService, probe
+from . import models as model_store
 from .engine import Engine
 from .geometry import Calibration, Table
 from .rules import available
@@ -67,11 +68,47 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
         "/api/camera/status": cam.status,
         "/api/camera/snapshot": cam.snapshot_json,
     }
+    weights_dir = ROOT / "weights"
+    detector_cfg = CONFIG / "detector.json"
+
+    def detector_status() -> dict:
+        cfg = {}
+        if detector_cfg.exists():
+            cfg = json.loads(detector_cfg.read_text())
+        return {
+            "detector": cfg.get("detector", "color"),
+            "weights": cfg.get("weights", ""),
+            "installed": model_store.list_installed(weights_dir),
+            "runtime": model_store.runtime().to_json(),
+            "allowed_hosts": sorted(model_store.ALLOWED_HOSTS),
+            "weights_dir": str(weights_dir),
+        }
+
+    def test_detector(m: dict) -> dict:
+        frame = None
+        blob, meta = (None, {})
+        if cam.source is not None:
+            blob, meta = cam.snapshot(warm=2)
+        if blob is not None:
+            import cv2
+            import numpy as np
+            frame = cv2.imdecode(np.frombuffer(blob, np.uint8), cv2.IMREAD_COLOR)
+        return model_store.try_model(m.get("weights", ""), sample=frame)
+
+    routes["/api/detector"] = detector_status
+
     posts = {
         "/api/camera/open": lambda m: cam.open(m.get("spec", "auto")),
         "/api/camera/close": lambda m: (cam.close(), {"ok": True})[1],
         "/api/camera/calibrate": lambda m: cam.calibrate(m.get("points"),
                                                          m.get("image_size")),
+        "/api/detector/install_runtime": lambda m: model_store.install_runtime(),
+        "/api/detector/install_model": lambda m: model_store.install_model(
+            m.get("source", ""), weights_dir, m.get("name", "")),
+        "/api/detector/select": lambda m: model_store.select_detector(
+            detector_cfg, m.get("detector", "color"), m.get("weights", ""),
+            float(m.get("conf", 0.4))),
+        "/api/detector/test": test_detector,
     }
     httpd = serve(engine_hub, OVERLAY, port=port, http_routes=routes,
                   post_routes=posts)

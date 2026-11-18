@@ -98,8 +98,67 @@ Without a GPU, the colour detector runs on a still frame of a resting table in
 well under a second. That is all scoring needs.
 
 A GPU buys you two things: faster Kinect depth decoding, and the headroom to
-run a YOLO model per-frame if you want live mid-shot tracking (trajectories,
+run a detector *per frame* if you want live mid-shot tracking (trajectories,
 speed, first-contact by proximity rather than by motion onset).
+
+### Running a YOLO model
+
+Short answer: **you do not need a GPU**, because of how this system reads the
+table. Detection runs once per shot, on a still frame, after everything has
+stopped. A nano-class model taking 300 ms on a mediocre CPU is 300 ms spent
+while the balls sit motionless and nobody is waiting.
+
+| | CPU only | With an NVIDIA GPU |
+|---|---|---|
+| install size | ~1 GB (`torch` CPU wheel + ultralytics) | ~3 GB (CUDA wheel) |
+| RAM | 8 GB | 8 GB |
+| one frame, nano model at 640 px | roughly 80–400 ms depending on the CPU | roughly 5–15 ms |
+| enough for scoring? | **yes** | yes |
+| enough for live per-frame tracking at 30 fps? | no | yes |
+
+A 4-core i5 or Ryzen 5 from the last several years is fine. Older or
+low-power CPUs (an N100 mini PC, a Pi) will work for scoring but feel slow if
+you later want tracking.
+
+The first run of any model is much slower than the rest — PyTorch warms up
+lazily, so expect several seconds on the first shot and normal speed after.
+**Test it before a match**, not during one: Setup → Detector → *Test on the
+camera* loads the model, runs one real frame and reports how many balls it
+found and how long it took.
+
+### Installing a model
+
+Setup → **Detector**. Two steps, both explicit:
+
+1. **Install YOLO support** runs `pip install ultralytics`. It is a few
+   gigabytes, mostly PyTorch, and takes minutes.
+2. **Add model** takes either a link (GitHub or Hugging Face only) or a path
+   to a file already on the PC, copies it into `weights/`, and selects it.
+
+Switching back to the colour detector is one press, and your colour tuning in
+`config/detector.json` is preserved either way.
+
+> **A `.pt` file is a pickled Python object, and loading one runs code from
+> that file.** Installing a model from the internet means running a
+> stranger's program on the machine next to your pool table. The installer
+> refuses hosts outside a small allowlist and shows the URL before fetching
+> anything, but neither of those makes an untrusted checkpoint safe — they
+> only make the decision visible. Prefer downloading the file yourself, from
+> a repository you have actually looked at, and installing it from a path.
+
+Pool-trained models worth looking at, none of which I have verified or run —
+check the licence and the code before trusting a checkpoint:
+
+- [Fergus-Gault/Pool-Ball-Tracker](https://github.com/Fergus-Gault/Pool-Ball-Tracker)
+  — YOLO with obstruction handling.
+- [Rainbowman0/YOLOv5-BilliardsDetection](https://github.com/Rainbowman0/YOLOv5-BilliardsDetection)
+  — a model plus training data for American balls, which would save the
+  labelling if you train your own.
+
+A model trained on American numbered balls will not label an English reds and
+yellows set correctly. If that is your table, the colour detector is both
+simpler and more likely to be right — two hues and a black is an easier
+problem than fifteen numbered balls, and it needs no download at all.
 
 The projector output wants to be a second display, set to **extend**, not
 mirror. Drag the overlay window onto it and press `f` for fullscreen.

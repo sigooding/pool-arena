@@ -194,7 +194,7 @@ input {
 }
 input:focus { outline: 2px solid var(--cloth-lit); outline-offset: -1px; }
 .hint { color: var(--dim); }
-.setup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.setup-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
 /* --- main grid ------------------------------------------------------------ */
 /* Fill the viewport: a tablet propped on the rail should show the table as
@@ -471,3 +471,39 @@ button:disabled:hover { background: var(--surface-2); }
 }
 .adjust button:hover { color: var(--ink); }
 .player .score { grid-row: 1; }
+
+
+/* --- detector ------------------------------------------------------------- */
+.det-choice { display: flex; gap: 8px; flex-wrap: wrap; }
+.warn-box {
+  padding: 13px 15px;
+  border: 1px solid #6B4A12;
+  border-left-width: 3px;
+  border-radius: 11px;
+  background: #1E1708;
+  color: #E8D9B0;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 78ch;
+}
+.warn-box strong { color: #FFD24A; }
+.warn-box code {
+  font: 12px ui-monospace, monospace;
+  background: #2A2110; padding: 1px 5px; border-radius: 4px;
+}
+.field { display: grid; gap: 6px; max-width: 640px; }
+.field > span {
+  font-size: var(--t-label); text-transform: uppercase;
+  letter-spacing: 0.12em; font-weight: 650; color: var(--dim);
+}
+.model-list { display: grid; gap: 6px; }
+.model-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border: 1px solid var(--line);
+  border-radius: 11px; background: var(--surface);
+  font-size: 13.5px;
+}
+.model-row.active { border-color: var(--cloth-lit); background: #14241D; }
+.model-row .mname { flex: 1; font-weight: 650; }
+.model-row .msize { color: var(--dim); font-size: 12px; }
+.model-row button { padding: 8px 12px; min-height: 38px; font-size: 12.5px; }
