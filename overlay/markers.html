@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool Arena — calibration markers</title>
+<link rel="stylesheet" href="/src/board.css">
+<link rel="stylesheet" href="/src/manual.css">
+<link rel="stylesheet" href="/src/markers.css">
+</head>
+<body>
+
+<div class="app screen-only">
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <div class="game">Calibration markers</div>
+        <div class="state">print, cut out, tape to the cloth</div>
+      </div>
+    </div>
+    <div class="bar-right">
+      <label class="size-pick">
+        Size
+        <select id="size">
+          <option value="60">60 mm</option>
+          <option value="90" selected>90 mm</option>
+          <option value="120">120 mm</option>
+        </select>
+      </label>
+      <button class="go" id="print">Print</button>
+      <a class="icon btnlink" href="/scoreboard.html">Back</a>
+    </div>
+  </header>
+
+  <article class="doc">
+    <p class="lede">Four markers, one for each corner. They let the camera
+    calibrate itself to about a millimetre — better than anyone can manage by
+    clicking — and if you leave them taped down, a camera that gets knocked
+    can notice and fix itself.</p>
+    <ol class="steps">
+      <li><b>Print this page</b> at 100% scale. Do not let the printer
+        "fit to page": the markers do not have to be an exact size, but they
+        do have to stay square.</li>
+      <li><b>Cut out each marker</b> leaving the white border on. The white
+        is not decoration — the detector needs it to find the black edge.</li>
+      <li><b>Tape each one flat on the cloth</b> just inside the corner it
+        names, with its <b>outer</b> corner on the cushion corner.</li>
+      <li>Then <b>Setup → Camera → Calibrate from markers</b>.</li>
+    </ol>
+    <p class="note-box">Leave them there. They are out of the way at the very
+    corners, and they are what lets the table recover from being nudged.</p>
+  </article>
+</div>
+
+<main class="sheet" id="sheet"></main>
+
+<div class="app screen-only print-note">
+  <p class="note">Nothing below this line prints except the four markers.</p>
+</div>
+
+<script type="module" src="/src/markers.js"></script>
+</body>
+</html>

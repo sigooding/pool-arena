@@ -141,3 +141,70 @@ def test_the_watch_only_looks_occasionally():
     frame = scene()
     assert [watch.check(frame) is not None for _ in range(5)] == [
         False, False, False, False, True]
+
+
+# --- the printable page ---------------------------------------------------
+# Its bit patterns are hardcoded in JavaScript so that printing four squares
+# does not require installing OpenCV. That is worth doing and worth guarding:
+# a typo in those arrays would print markers nothing can read, and the person
+# would not find out until they were standing at the table with tape.
+def _patterns_from_js():
+    import ast
+    import re
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent
+           / "overlay" / "src" / "markers.js").read_text()
+    block = re.search(r"const PATTERNS = \{(.*?)\n\};", src, re.S)
+    assert block, "PATTERNS not found in markers.js"
+    out = {}
+    for line in block.group(1).strip().splitlines():
+        m = re.match(r"\s*(\d+):\s*(\[.*\]),?\s*$", line)
+        assert m, line
+        out[int(m.group(1))] = ast.literal_eval(m.group(2))
+    return out
+
+
+def test_the_printable_patterns_match_the_dictionary_the_detector_uses():
+    js = _patterns_from_js()
+    assert sorted(js) == list(CORNER_IDS)
+    d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    for mid, bits in js.items():
+        truth = (cv2.aruco.generateImageMarker(d, mid, 6) > 127).astype(int).tolist()
+        assert bits == truth, f"marker {mid} in markers.js no longer matches ArUco"
+
+
+def test_the_printed_markers_are_actually_detectable():
+    """Render the patterns the way the page does and read them back."""
+    js = _patterns_from_js()
+    cell, quiet = 24, 36
+    for mid, bits in js.items():
+        n = len(bits)
+        size = n * cell + quiet * 2
+        img = np.full((size, size), 255, np.uint8)
+        for r in range(n):
+            for c in range(n):
+                if not bits[r][c]:
+                    img[quiet + r * cell: quiet + (r + 1) * cell,
+                        quiet + c * cell: quiet + (c + 1) * cell] = 0
+        page = np.full((size + 80, size + 80), 255, np.uint8)
+        page[40:40 + size, 40:40 + size] = img
+        res = find_markers(cv2.cvtColor(page, cv2.COLOR_GRAY2BGR))
+        assert mid in res.found, f"marker {mid} as drawn by the page is unreadable"
+
+
+def test_the_white_border_is_not_decoration():
+    """ArUco needs a quiet zone. Printed hard against a dark edge it fails,
+    which is why the page tells people to cut outside the white."""
+    js = _patterns_from_js()
+    bits = js[0]
+    n, cell = len(bits), 24
+    size = n * cell
+    img = np.full((size, size), 255, np.uint8)
+    for r in range(n):
+        for c in range(n):
+            if not bits[r][c]:
+                img[r * cell:(r + 1) * cell, c * cell:(c + 1) * cell] = 0
+    on_black = np.zeros((size + 80, size + 80), np.uint8)
+    on_black[40:40 + size, 40:40 + size] = img
+    res = find_markers(cv2.cvtColor(on_black, cv2.COLOR_GRAY2BGR))
+    assert 0 not in res.found, "if this passes, the quiet-zone advice is wrong"

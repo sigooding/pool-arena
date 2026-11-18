@@ -54,13 +54,19 @@ Fix it to a joist, not a lamp.
 
 ### 2. Print the markers
 
+In the UI: **Setup → Camera → Print the markers**, which opens a page you
+can print straight from the browser and pick a size on. Or from a terminal:
+
 ```bash
 python -m poolarena markers
 ```
 
-Print the sheet, cut out the four markers, and tape each one flat on the
-cloth just inside the corner it names, with its **outer** corner on the
-cushion corner. 60 mm markers are enough; bigger is easier.
+Print at 100% — do not let the printer "fit to page". Cut out the four
+squares **leaving the white border on**: that border is not decoration, the
+detector needs it to find the marker's black edge, and a marker trimmed
+flush will not be read. Tape each one flat on the cloth just inside the
+corner it names, with its **outer** corner on the cushion corner. 60 mm
+markers are enough; bigger is easier.
 
 Leave them taped down. They cost nothing and they let the camera notice when
 it has been nudged.

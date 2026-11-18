@@ -578,14 +578,6 @@ async function refreshCamera() {
   el('cam-snap').disabled = !st.open;
 }
 
-el('cam-sheet').onclick = async () => {
-  const r = await api('/api/camera/marker_sheet', {});
-  el('cam-status').className = 'cam-status ready';
-  el('cam-status').textContent = r.ok
-    ? `Sheet written to ${r.path}. ${r.note}`
-    : (r.error || 'could not write the sheet');
-};
-
 el('cam-markers').onclick = async () => {
   el('cam-status').className = 'cam-status';
   el('cam-status').textContent = 'Looking for the four markers…';
