@@ -124,11 +124,23 @@ def test_the_splash_uses_the_full_artwork_and_the_game_view_does_not():
     assert (OVERLAY / "img" / "backdrop.webp").exists()
 
 
-def test_a_card_on_the_splash_starts_its_game_on_one_tap():
-    """A front door with a second step is not a front door."""
+def test_tapping_a_card_on_the_splash_asks_who_is_playing():
+    """Tap a game and it asks the names, then starts. Not because a step is
+    wanted for its own sake — the names matter more often than they do not,
+    and typing them after the break means racking up again."""
     js = (OVERLAY / "src" / "board.js").read_text()
     assert "const startsOnTap = containerId === 'splash-games'" in js
-    assert "if (startsOnTap) startGame()" in js
+    assert "if (startsOnTap) askWho()" in js
+    assert "function askWho()" in js
+
+
+def test_the_player_sheet_can_be_backed_out_of():
+    """It covers the games, so there has to be a way back to them."""
+    js = (OVERLAY / "src" / "board.js").read_text()
+    assert "el('who-back').onclick" in js
+    assert "'Escape'" in js.split("function askWho", 1)[1]
+    html = (OVERLAY / "scoreboard.html").read_text()
+    assert 'id="who-back"' in html and 'id="who-start"' in html
 
 
 def test_the_splash_has_no_start_button():
@@ -139,10 +151,63 @@ def test_the_splash_has_no_start_button():
 
 
 def test_the_setup_tab_still_only_selects():
-    """There you are choosing players and options first, so a tap must not
-    commit you."""
+    """There you have the roster and the options in front of you already, so
+    a tap must not open a sheet or commit you to anything."""
     js = (OVERLAY / "src" / "board.js").read_text()
     body = js.split("function renderGamesInto", 1)[1].split("\n}", 1)[0]
-    # the start is guarded, never unconditional
-    assert "startGame();" in body
-    assert body.count("startGame()") == 1
+    assert body.count("askWho()") == 1, "only ever behind the splash guard"
+    assert "if (startsOnTap)" in body
+
+
+# --- quitting -------------------------------------------------------------
+def test_there_is_a_way_out_of_a_game():
+    """Without one, leaving a game means restarting the program."""
+    html = (OVERLAY / "scoreboard.html").read_text()
+    assert 'id="quit"' in html
+    js = (OVERLAY / "src" / "board.js").read_text()
+    assert "el('quit').onclick" in js
+    assert "type: 'end_game'" in js
+
+
+def test_quitting_mid_frame_asks_first():
+    js = (OVERLAY / "src" / "board.js").read_text()
+    body = js.split("el('quit').onclick", 1)[1][:400]
+    assert "confirm(" in body, "it throws away the frame in progress"
+    assert "board.over" in body, "but a finished game needs no confirming"
+
+
+def test_quit_is_hidden_on_the_splash():
+    js = (OVERLAY / "src" / "board.js").read_text()
+    assert "el('quit').hidden = !!on" in js
+
+
+def test_ending_a_game_returns_the_engine_to_nothing(engine):
+    engine.start_game("8ball", ["A", "B"])
+    engine.handle_client_message({"type": "end_game"})
+    assert engine.game is None
+    assert engine.hub.sticky["scoreboard"]["scoreboard"] is None
+
+
+def test_ending_a_game_clears_the_cloth(engine):
+    """A dead frame's guides left lit on a table nobody is playing on is how
+    a projector ends up stuck showing the last game all evening."""
+    engine.start_game("hotspots", ["A"])
+    engine.hub.sent.clear()
+    engine.end_game()
+    batches = [m for m in engine.hub.sent if m.get("type") == "effects"]
+    assert any(m.get("clear") == "all" for m in batches)
+
+
+def test_ending_a_game_drops_its_history(engine):
+    engine.start_game("8ball", ["A", "B"])
+    engine.history.append({"shot": 0})
+    engine.end_game()
+    assert engine.history == []
+    assert not engine.can_undo
+
+
+def test_a_new_game_can_be_started_after_quitting(engine):
+    engine.start_game("8ball", ["A", "B"])
+    engine.end_game()
+    engine.start_game("timebomb", ["Sam"])
+    assert engine.game is not None and engine.game.name == "timebomb"

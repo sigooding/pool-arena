@@ -109,16 +109,16 @@ colour-coded shot feed:
   actually on, projected live, with what it will hit.
 - **Nothing lost on a restart.** `--resume` picks up a frame that was
   interrupted, and career totals span every recording.
-- **397 tests** covering geometry, shot detection, every rule set, the full
+- **405 tests** covering geometry, shot detection, every rule set, the full
   pipeline end to end, and the overlay's own effect timings (those run the
   JavaScript under node, and skip if node isn't installed).
 
 ## The scoreboard opens on a splash
 
-Games on the artwork, tap one to start, **Options** for everything else. The
-table appears once a game is running and not before: a table view with no
-game on it has nothing to show, and a scoreboard of zeroes reads as a fault
-rather than as a beginning.
+Games on the artwork; tap one, put the names in, and it starts. **Options**
+for everything else, **Quit** to come back. The table appears once a game is
+running and not before: a table view with no game on it has nothing to show,
+and a scoreboard of zeroes reads as a fault rather than as a beginning.
 
 `--game 8ball` starts straight into one instead.
 

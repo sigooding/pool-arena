@@ -26,6 +26,8 @@
         <span id="clock-left">30.0</span><small id="clock-note">left</small>
       </div>
       <div class="shotno"><span id="shot-no">&mdash;</span><small>shot</small></div>
+      <button class="icon" id="quit" hidden
+              title="End this game and go back to the games">Quit</button>
       <button class="icon undo" id="undo" disabled
               title="Take back the last shot">Undo</button>
       <button class="icon" id="redo" disabled hidden
@@ -300,6 +302,25 @@
     <div class="splash-foot">
       <button id="splash-options">Options</button>
       <span class="hint" id="splash-players"></span>
+    </div>
+
+    <!-- Step two: who is playing. Opens when a game is tapped, because the
+         names matter more often than they do not and typing them afterwards
+         means restarting the frame. -->
+    <div class="who" id="who" hidden>
+      <div class="who-card">
+        <p class="who-game" id="who-game"></p>
+        <div class="name-list" id="who-names"></div>
+        <div class="setup-actions">
+          <button id="who-add">Add player</button>
+          <button id="who-remove">Remove last</button>
+        </div>
+        <div class="setup-actions who-go">
+          <button class="go" id="who-start">Start</button>
+          <button id="who-back">Back</button>
+        </div>
+        <p class="note" id="who-hint"></p>
+      </div>
     </div>
   </section>
 

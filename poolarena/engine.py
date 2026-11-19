@@ -321,6 +321,27 @@ class Engine:
             self.on_shot(window)
         return window
 
+    def end_game(self) -> None:
+        """Put the table back to no game at all.
+
+        Not the same as a game being over: a finished game still has a
+        scoreboard worth reading. This is the way back to the splash, so it
+        clears the cloth as well — leaving the last game's guides lit on a
+        table nobody is playing on is how a projector ends up stuck showing
+        a dead frame all evening.
+        """
+        if self.recorder:
+            self.recorder.finish(self.game.winner if self.game else None)
+        self.game = None
+        self.history.clear()
+        self._undo.clear()
+        self._redo.clear()
+        self._awaiting_turn_fx = True
+        self._awaiting_placement = False
+        self.emit_effects([], clear="all")
+        self.push_history()
+        self.push_scoreboard()
+
     # --- the game clock -------------------------------------------------------
     def tick_game(self) -> None:
         """Give a timed game its chance to act when no shot is happening.
@@ -591,6 +612,8 @@ class Engine:
             self.emit_effects([Effect("pocket_glow", {"pocket": msg["pocket"],
                                                       "color": "#f472b6", "persist": True},
                                       layer="guide")])
+        elif kind == "end_game":
+            self.end_game()
         elif kind == "undo":
             self.hub.broadcast({"type": "undo_result", **self.undo()})
         elif kind == "redo":

@@ -190,7 +190,7 @@ function renderGamesInto(containerId) {
     if (!b.disabled) {
       b.onclick = () => {
         pick(g.name);              // also fits the roster to this game
-        if (startsOnTap) startGame();
+        if (startsOnTap) askWho();
       };
     }
     wrap.appendChild(b);
@@ -202,8 +202,26 @@ function renderGamesInto(containerId) {
 let roster = ['Player 1', 'Player 2'];
 
 function renderRoster() {
+  for (const id of ['name-list', 'who-names']) renderRosterInto(id);
   const g = games.find((x) => x.name === picked);
-  const list = el('name-list');
+  if (g) {
+    const span = g.min_players === g.max_players
+      ? `${g.min_players} players` : `${g.min_players}-${g.max_players} players`;
+    for (const [hintId, addId, remId] of [['roster-hint', 'add-player', 'remove-player'],
+                                          ['who-hint', 'who-add', 'who-remove']]) {
+      const hint = el(hintId);
+      if (hint) hint.textContent = `${g.title}: ${span}`;
+      if (el(addId)) el(addId).disabled = roster.length >= g.max_players;
+      if (el(remId)) el(remId).disabled = roster.length <= g.min_players;
+    }
+    const wg = el('who-game');
+    if (wg) wg.textContent = g.title;
+  }
+}
+
+function renderRosterInto(listId) {
+  const list = el(listId);
+  if (!list) return;
   list.textContent = '';
   roster.forEach((name, i) => {
     const row = document.createElement('div');
@@ -220,13 +238,6 @@ function renderRoster() {
     row.append(seat, input);
     list.appendChild(row);
   });
-  if (g) {
-    const span = g.min_players === g.max_players
-      ? `${g.min_players} players` : `${g.min_players}-${g.max_players} players`;
-    el('roster-hint').textContent = `${g.title}: ${span}`;
-    el('add-player').disabled = roster.length >= g.max_players;
-    el('remove-player').disabled = roster.length <= g.min_players;
-  }
 }
 
 function fitRoster() {
@@ -1132,6 +1143,8 @@ function showSplash(on) {
   const splash = el('splash');
   if (!splash) return;
   splash.hidden = !on;
+  if (on) el('who').hidden = true;      // a new splash starts at step one
+  if (el('quit')) el('quit').hidden = !!on;
   document.body.classList.toggle('no-game', !!on);
   el('game-title').textContent = on ? 'Pool Arena' : el('game-title').textContent;
   if (on) {
@@ -1151,3 +1164,39 @@ el('splash-options').onclick = () => {
   if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
+
+// --- who is playing -------------------------------------------------------
+// Tapping a game asks who, then starts. Names matter more often than they
+// do not, and typing them after the break means racking up again.
+function askWho() {
+  renderRoster();
+  el('who').hidden = false;
+  const first = el('who-names').querySelector('input');
+  if (first) { first.focus(); first.select(); }
+}
+
+el('who-back').onclick = () => { el('who').hidden = true; };
+el('who-start').onclick = () => { el('who').hidden = true; startGame(); };
+el('who-add').onclick = () => {
+  roster.push(`Player ${roster.length + 1}`);
+  renderRoster();
+};
+el('who-remove').onclick = () => { roster.pop(); renderRoster(); };
+
+// Escape backs out, which is what everybody tries first.
+el('who').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') el('who').hidden = true;
+});
+el('who').addEventListener('pointerdown', (e) => {
+  if (e.target === el('who')) el('who').hidden = true;   // tap the dimmed area
+});
+
+// --- quitting -------------------------------------------------------------
+// A game that cannot be left is a game you have to restart the program to
+// get out of. Confirmed, because it throws away the frame in progress.
+el('quit').onclick = () => {
+  const n = board && board.shot_number ? board.shot_number : 0;
+  const mid = n > 0 && !(board && board.over);
+  if (mid && !confirm(`End this game? ${n} shot${n === 1 ? '' : 's'} played.`)) return;
+  send({ type: 'end_game' });
+};
