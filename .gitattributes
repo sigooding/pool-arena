@@ -1,0 +1,17 @@
+# Batch files must keep CRLF wherever they are checked out. A label that
+# arrives without its carriage return can send `goto` somewhere unintended,
+# and the failure looks like the script doing nothing at all.
+*.bat text eol=crlf
+
+# Everything else is Unix-ended, including on Windows checkouts.
+*.py   text eol=lf
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+
+*.webp binary
+*.png  binary
+*.jpg  binary
+*.mp4  binary
