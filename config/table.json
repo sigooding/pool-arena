@@ -2,7 +2,7 @@
   "size": "8ft",
   "length": 2235.0,
   "width": 1118.0,
-  "ball_radius": 28.6,
+  "ball_radius": 25.4,
   "_ball_radius": "A ball's RADIUS in millimetres, and it has to match the set actually on the table: American balls are 2.25 in (28.6 radius), English are 2 in (25.4). The detector does not measure - it reads each ball's colour from a patch this size - so a wrong value quietly makes the scoring worse without anything looking broken. `poolarena doctor` measures the balls and says if it disagrees.",
   "pocket_capture": 70.0,
   "_comment": "Playing surface inside the cushions, in millimetres. Measure your own table: nominal sizes vary by manufacturer. Sizes known by name: 7ft 8ft 8ft-pro 9ft 10ft snooker.",

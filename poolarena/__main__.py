@@ -123,6 +123,8 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             detector_cfg, m.get("detector", "color"), m.get("weights", ""),
             float(m.get("conf", 0.4))),
         "/api/detector/test": test_detector,
+        "/api/table/ball_radius": lambda m: cam.set_ball_radius(
+            float(m.get("radius_mm", 0))),
         "/api/camera/check": lambda m: cam.run_check(
             frames=max(5, min(240, int(m.get("frames", 40)))),
             expect=max(1, min(22, int(m.get("expect", 16)))),

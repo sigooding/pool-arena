@@ -907,6 +907,11 @@ el('check-run').onclick = async () => {
       return;
     }
     renderChecks(r.checks);
+    // Prefill with what it just measured, so acting on the finding is one
+    // click rather than a trip to a text editor.
+    const size = (r.checks || []).find((c) => c.name === 'ball size');
+    const seen = size && size.numbers && size.numbers.measured_radius_mm;
+    if (seen) el('ball-radius').value = seen;
     status.className = `cam-status ${r.ready ? 'ready' : 'bad'}`;
     status.textContent = r.ready
       ? 'Ready — nothing here stops a game.'
@@ -918,3 +923,31 @@ el('check-run').onclick = async () => {
     btn.disabled = false;
   }
 };
+
+// --- ball size ------------------------------------------------------------
+// Closes the loop on the check above: it measures the balls, this applies the
+// number. Without it the only way to act on "these are English balls" is to
+// edit a JSON file, which is a poor thing to discover at nine o'clock with a
+// table racked.
+async function saveBallRadius(mm) {
+  const status = el('ball-radius-status');
+  status.hidden = false;
+  status.className = 'cam-status';
+  status.textContent = 'Saving…';
+  const r = await api('/api/table/ball_radius', { radius_mm: mm });
+  if (!r.ok) {
+    status.className = 'cam-status bad';
+    status.textContent = r.error || 'could not save';
+    return;
+  }
+  el('ball-radius').value = r.now;
+  status.className = 'cam-status ready';
+  status.textContent = r.restart_needed
+    ? `Saved: ${r.now} mm. Restart to use it — the detector is sized when it starts.`
+    : `Saved: ${r.now} mm.`;
+}
+
+el('ball-radius-save').onclick = () =>
+  saveBallRadius(Number(el('ball-radius').value));
+el('ball-radius-english').onclick = () => saveBallRadius(25.4);
+el('ball-radius-american').onclick = () => saveBallRadius(28.6);

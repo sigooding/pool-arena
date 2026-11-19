@@ -202,6 +202,25 @@
       </div>
       <div class="cam-status" id="check-status">not run yet</div>
       <div class="checks" id="check-list"></div>
+
+      <div class="ball-size" id="ball-size">
+        <p class="note">
+          <b>Ball size.</b> The detector is told how big a ball is and reads
+          each one's colour from a patch that size, so this has to match the
+          set on the table &mdash; English balls are 25.4&nbsp;mm radius,
+          American 28.6. A caliper beats the camera if you have one.
+        </p>
+        <div class="setup-actions">
+          <label class="field inline">
+            <span>Radius, mm</span>
+            <input id="ball-radius" type="number" min="15" max="40" step="0.1">
+          </label>
+          <button id="ball-radius-save">Save</button>
+          <button id="ball-radius-english" class="chip">English 25.4</button>
+          <button id="ball-radius-american" class="chip">American 28.6</button>
+        </div>
+        <div class="cam-status" id="ball-radius-status" hidden></div>
+      </div>
     </div>
 
   </section>

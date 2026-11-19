@@ -24,6 +24,58 @@ Mount it over the **centre** of the table, looking straight down if you can.
 Off-centre is fine — the homography handles it — but the further off-axis, the
 more the far corner's balls occlude each other.
 
+### Can the camera go at the side of the table?
+
+Yes, if it is high enough — and a detector has nothing to do with it. This is
+geometry, and no model can see a ball that is behind another ball.
+
+Two things get worse as the camera comes down from overhead. One is
+**occlusion**, which is the hard limit, and the worst case is the rack,
+which happens at the start of every single game. Measured on a tight
+15-ball triangle on a 7ft/8ft English table:
+
+| Camera | Balls hidden in the rack |
+|---|---|
+| Overhead, 2.2–3.0 m above the centre | **0 of 15** |
+| Long side, 2.2 m up, 1 m out | **0 of 15** |
+| Long side, 1.5 m up, 1 m out | 10 of 15 |
+| Long side, 1.0 m up, 1 m out | 10 of 15 |
+| End on, 1.5 m up, 1 m back | 14 of 15 |
+
+A hidden ball is indistinguishable from a potted one. The shot detector
+refuses to score rather than score fiction, so a low mount does not produce
+wrong scores — it produces a table that will not score at all.
+
+The other is **parallax**: the ball's centre sits one radius above the cloth,
+so the camera sees it displaced outward from the point beneath the lens.
+
+| Camera | Worst error, uncorrected | Corrected |
+|---|---|---|
+| Overhead, 2.2 m | 13 mm | **0.0 mm** |
+| Long side, 2.2 m up, 1 m out | 26 mm | **0.0 mm** |
+| Long side, 1.8 m up, 1 m out | 32 mm | **0.0 mm** |
+| Long side, 2.2 m up, nadir left at table centre | 26 mm | 18 mm |
+
+The correction is exact, because the model is exact — similar triangles and
+nothing else. But it is **off by default**, and off a side mount it is the
+difference between working and not: 26 mm against a 70 mm pocket capture
+radius will put a hanging ball on the wrong side of the jaws.
+
+Turn it on by telling it the height and the point on the table directly
+beneath the lens. For a camera 2.2 m up and 1 m out from the long side of an
+8ft table, that point is outside the cushion, which is fine:
+
+```
+run --camera-height 2200 --camera-nadir "1117,-1000"
+```
+
+Get the nadir wrong and most of the benefit goes with it — leaving it at the
+table centre recovers only 26 mm → 18 mm. It is worth measuring.
+
+**So: overhead if you can, a high side mount if you cannot, and never low or
+end-on.** The reason to prefer overhead is not accuracy — the corrected
+numbers are identical — it is that overhead is forgiving of everything else.
+
 ### Kinect v2 (Xbox One sensor)
 
 What you have, and it works:

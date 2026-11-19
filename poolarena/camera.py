@@ -12,6 +12,7 @@ frame, so running the simulator does not fight the live system for the device.
 from __future__ import annotations
 
 import base64
+import json
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -208,6 +209,34 @@ class CameraService:
                                     for k, v in c.numbers.items()}}
                        for c in checks],
         }
+
+    def set_ball_radius(self, mm: float) -> dict[str, Any]:
+        """Write the ball size to config/table.json.
+
+        A caliper beats the camera: the measurement in the pre-flight is good
+        to under a millimetre, which is enough to tell the two standard sets
+        apart but not as good as just measuring one. Either way it has to end
+        up in the config, and editing JSON by hand on the night is exactly
+        the kind of friction that loses an evening.
+        """
+        if not 15.0 <= mm <= 40.0:
+            return {"ok": False,
+                    "error": f"{mm:g} mm is not a pool ball. "
+                             "English balls are 25.4, American 28.6 — and "
+                             "this is the radius, not the diameter."}
+        path = self.calibration_path.parent / "table.json"
+        try:
+            cfg = json.loads(path.read_text()) if path.exists() else {}
+        except ValueError as exc:
+            return {"ok": False, "error": f"config/table.json will not parse: {exc}"}
+        was = cfg.get("ball_radius")
+        cfg["ball_radius"] = round(float(mm), 2)
+        path.write_text(json.dumps(cfg, indent=2) + "\n")
+        # The live pipeline sized its detector at startup, so this takes
+        # effect next time it runs. Say so rather than letting someone
+        # wonder why nothing changed.
+        return {"ok": True, "was": was, "now": cfg["ball_radius"],
+                "restart_needed": True}
 
     # --- calibration -------------------------------------------------------
     def calibrate(self, points, image_size=None) -> dict[str, Any]:
