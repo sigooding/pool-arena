@@ -63,12 +63,13 @@ class Doctor:
             # Nothing downstream can be judged without frames, and saying
             # "no balls found" when the camera never opened is a lie that
             # sends people tuning the wrong thing.
-            for name in ("calibration", "cloth", "balls", "stability",
-                         "colour separation", "view"):
+            for name in ("calibration", "cloth", "ball size", "balls",
+                         "stability", "colour separation", "view"):
                 self.checks.append(Check(name, SKIP, "no frames to judge"))
             return self.checks
         self.checks.append(self._check_calibration())
         self.checks.append(self._check_cloth())
+        self.checks.append(self._check_ball_size())
         self.checks.append(self._check_balls(states))
         self.checks.append(self._check_stability(states))
         self.checks.append(self._check_separation(states))
@@ -215,6 +216,87 @@ class Doctor:
                          "balls in the dark patches.", nums)
         return Check("cloth", OK, f"{frac * 100:.0f}% reads as cloth",
                      numbers=nums)
+
+    def _check_ball_size(self) -> Check:
+        """Are the balls on the table the size the config thinks they are?
+
+        Measured here from the mask directly rather than asked of the
+        detector, because the detector does not measure: it is told how big a
+        ball is and takes each one's colour from a patch that size. Tell it
+        28.6 mm when the balls are 25.4 and every patch picks up a ring of
+        cloth around the ball, which drags the hue about and can push a solid
+        over the white threshold that means "cue ball". Nothing errors. The
+        scoring just gets worse.
+
+        Easy to get wrong with two sets in the cupboard: American balls are
+        2.25 inches and English are 2, which is a tenth off the diameter.
+        """
+        best = None
+        for pipe in self._pipelines():
+            warped = getattr(pipe, "last_warped", None)
+            det = getattr(pipe, "detector", None)
+            ppm = float(getattr(pipe, "px_per_mm", 0.5)) or 0.5
+            if warped is None or det is None or not hasattr(det, "cloth_mask"):
+                continue
+            try:
+                import cv2
+                mask = det.cloth_mask(warped)
+                n, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+            except Exception:
+                continue
+            radii = []
+            for i in range(1, n):
+                area = float(stats[i, cv2.CC_STAT_AREA])
+                r_mm = (area / np.pi) ** 0.5 / ppm
+                # Plausible single balls only: smaller is speckle, larger is
+                # two balls touching and would drag the median up.
+                if 12.0 < r_mm < 40.0:
+                    radii.append(r_mm)
+            if len(radii) >= 4:
+                best = (getattr(pipe, "name", "camera"), radii)
+                break
+        if best is None:
+            return Check("ball size", SKIP, "not enough clean blobs to measure")
+
+        name, radii = best
+        radii.sort()
+        # The mask is opened and closed with a 5x5 kernel before anything
+        # counts it, which shaves a pixel or so off every blob — about 4% of
+        # a ball's radius at the default warp. Measured on rendered balls of
+        # a known size; see tests/test_doctor.py.
+        seen = radii[len(radii) // 2] * 1.04
+        want = float(self.table.ball_radius)
+
+        # Which standard set this is, rather than how many millimetres it is.
+        # The two sets differ by 13%, comfortably more than this measurement
+        # is out by, so "are you on the wrong set?" is answerable even though
+        # "is it exactly 25.4?" is not — and the wrong set is what actually
+        # costs you.
+        STANDARD = {25.4: "English (2 in)", 28.6: "American (2.25 in)"}
+        nearest = min(STANDARD, key=lambda r: abs(seen - r))
+        nums = {"measured_radius_mm": round(seen, 1), "configured_mm": want,
+                "looks_like": STANDARD[nearest], "blobs": len(radii)}
+
+        if abs(nearest - want) > 0.5:
+            return Check("ball size", FAIL,
+                         f"balls measure about {seen:.1f} mm radius; the "
+                         f"config says {want:.1f} mm",
+                         f"That is a set of {STANDARD[nearest]} balls against "
+                         f"a config for the other one. Set \"ball_radius\" in "
+                         f"config/table.json to {nearest}. Left wrong, every "
+                         f"ball's colour is read from a patch the wrong size, "
+                         f"which quietly makes the scoring worse without "
+                         f"anything looking broken.", nums)
+        if abs(seen - want) / want > 0.10:
+            return Check("ball size", WARN,
+                         f"balls measure about {seen:.1f} mm radius against "
+                         f"{want:.1f} mm configured",
+                         "The right set, but further out than expected. Worth "
+                         "a caliper on one ball, and the real number in "
+                         '"ball_radius".', nums)
+        return Check("ball size", OK,
+                     f"about {seen:.1f} mm radius — {STANDARD[nearest]}, "
+                     f"as configured", numbers=nums)
 
     def _check_balls(self, states) -> Check:
         counts = [len(s.balls) for s in states]

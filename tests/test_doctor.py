@@ -244,3 +244,94 @@ def test_a_depth_wrapped_pipeline_is_still_inspected():
     c = find(Doctor(TABLE, rig, 16, frames=10).run(), "calibration")
     assert c.status == FAIL, "the wrapper must not hide a bad calibration"
     assert c.numbers["camera"] == "kinect"
+
+
+# --- ball size: the wrong set in the cupboard -----------------------------
+# Two sets of balls and one config is an easy way to get a quiet, miserable
+# fault: American balls are 2.25 inches and English are 2, and the detector
+# does not measure — it is told how big a ball is and reads each one's colour
+# from a patch that size. Tell it the wrong size and every patch picks up a
+# ring of cloth. Nothing errors; the scoring just gets worse.
+import numpy as np
+import pytest
+
+cv2 = pytest.importorskip("cv2")
+
+
+def table_photo(ball_radius_mm, corners, table, bgr, layout):
+    from poolarena.geometry import apply_h, homography
+    W, H = 1920, 1080
+    Hm = homography([(0, 0), (table.length, 0),
+                     (table.length, table.width), (0, table.width)], corners)
+    img = np.zeros((H, W, 3), np.uint8)
+    img[:] = (38, 30, 24)
+    cv2.fillPoly(img, [np.array([[int(x), int(y)] for x, y in corners], np.int32)],
+                 (86, 120, 40))
+    scale = abs(corners[1][0] - corners[0][0]) / table.length
+    for num, mm in layout.items():
+        p = apply_h(Hm, [mm])[0]
+        cv2.circle(img, (int(p[0]), int(p[1])),
+                   max(2, int(ball_radius_mm * scale)),
+                   bgr[num if num < 9 else num - 8], -1)
+    return img
+
+
+class OneCameraRig:
+    def __init__(self, pipe, img):
+        self.views = [FakeView(pipe)]
+        self._pipe, self._img = pipe, img
+
+    def read(self):
+        return self._pipe.process(self._img)
+
+    def close(self):
+        pass
+
+
+def size_check(configured_mm, real_mm):
+    from test_vision import BGR, IMAGE_CORNERS, LAYOUT
+    from poolarena.geometry import Table
+    from poolarena.vision.calibrate import Calibration
+    from poolarena.vision.detect import ColorBallDetector, ball_px_for
+    from poolarena.vision.pipeline import VisionPipeline
+
+    t = Table("8ft")
+    t.ball_radius = configured_mm
+    pipe = VisionPipeline(t, Calibration.from_corners(IMAGE_CORNERS, t),
+                          ColorBallDetector(ball_px=ball_px_for(t, 0.5),
+                                            cloth_model="local"))
+    img = table_photo(real_mm, IMAGE_CORNERS, t, BGR, LAYOUT)
+    checks = Doctor(t, OneCameraRig(pipe, img), 8, frames=4).run()
+    return find(checks, "ball size")
+
+
+def test_the_right_balls_for_the_config_pass():
+    assert size_check(28.6, 28.6).status == OK
+    assert size_check(25.4, 25.4).status == OK
+
+
+def test_english_balls_under_an_american_config_are_caught():
+    c = size_check(28.6, 25.4)
+    assert c.status == FAIL
+    assert "25.4" in c.remedy, "and it says what to set it to"
+    assert c.numbers["looks_like"].startswith("English")
+
+
+def test_american_balls_under_an_english_config_are_caught():
+    c = size_check(25.4, 28.6)
+    assert c.status == FAIL
+    assert "28.6" in c.remedy
+    assert c.numbers["looks_like"].startswith("American")
+
+
+def test_the_measurement_is_accurate_enough_to_name_the_set():
+    """The mask is opened and closed before anything is counted, which shaves
+    about 4% off every blob. That is compensated; this is what pins it."""
+    for real in (25.4, 28.6):
+        c = size_check(real, real)
+        assert c.numbers["measured_radius_mm"] == pytest.approx(real, abs=0.6)
+
+
+def test_it_says_so_rather_than_guessing_when_it_cannot_measure():
+    checks = Doctor(TABLE, FakeRig([rack()]), 16, frames=10).run()
+    assert find(checks, "ball size").status == SKIP
