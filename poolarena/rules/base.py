@@ -34,7 +34,7 @@ class Game(ABC):
     """Base class for every game mode.
 
     Subclasses implement `on_shot`. Optional hooks: `on_start`, `on_rack`,
-    `on_turn_start`, `idle_effects`.
+    `on_turn_start`, `idle_effects`, `on_tick`.
     """
 
     name: str = "game"
@@ -108,6 +108,21 @@ class Game(ABC):
     def idle_effects(self, state: TableState) -> list[Effect]:
         """Ambient effects while nothing is happening. Keep these cheap."""
         return []
+
+    def on_tick(self, now: float, settled: bool) -> ShotResult | None:
+        """Called roughly once a second while the game is live, whether or
+        not anybody is shooting.
+
+        Every other hook here hangs off a shot, which is right for games
+        decided by what happens on the cloth. A game decided by a clock needs
+        to be asked the question when nothing is happening at all — that is
+        exactly when its clock runs out. Return None for "nothing to report",
+        which is what all but a timed game will ever do.
+
+        `settled` says whether the balls are currently at rest, so a clock can
+        choose to stop while they roll.
+        """
+        return None
 
     # --- helpers for subclasses -------------------------------------------
     @property

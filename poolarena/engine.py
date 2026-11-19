@@ -85,6 +85,11 @@ class Engine:
         self._heart_stop = threading.Event()
         if self.idle_after > 0:
             self._heart.start()
+        # feed() runs on the camera thread and the heartbeat on its own, and
+        # both ask the game whether its clock has run out. Without this they
+        # can both get "yes" and end the game twice.
+        self._tick_lock = threading.Lock()
+        self._last_settled = True
 
     # --- game lifecycle ----------------------------------------------------
     def start_game(self, name: str, players: list[str] | None = None,
@@ -110,6 +115,10 @@ class Engine:
             self.recorder.finish()          # close any game left hanging
         self.game = cls(players=names, table=self.table, options=options or {},
                         ball_set=self.ball_set)
+        # A game with a clock needs the heartbeat even where the attract mode
+        # is switched off, or its clock only advances when a frame arrives.
+        if type(self.game).on_tick is not Game.on_tick:
+            self._ensure_heartbeat()
         if self.recorder:
             self.recorder.start(self.game, self.table, self.ball_set)
         self.detector.reset(self.detector.resting)
@@ -198,9 +207,30 @@ class Engine:
         # middle of a frame shows no zones and no nominated pocket until the
         # next shot ends — and with no projector attached, those guides only
         # exist on the scoreboard, so the game would look broken.
-        sticky = any(e.args.get("persist") or e.args.get("duration") == 0
-                     for e in effects)
-        self.hub.broadcast(msg, sticky_key="guides" if sticky else None)
+        #
+        # Keyed per layer, because the layers are independent: a countdown on
+        # the HUD and a set of zones on the cloth are both persistent and both
+        # need replaying, and under one shared key the later one would silently
+        # evict the earlier, leaving a joiner with half a game.
+        layers = sorted({e.layer for e in effects
+                         if e.args.get("persist") or e.args.get("duration") == 0})
+        # A clear is as much a part of the replay as the effects are. Dropping
+        # the stale entries here is what stops a new game's opening batch —
+        # which often carries no guides of its own — from leaving the previous
+        # game's zones to be replayed to the next client that connects.
+        if clear == "all":
+            for key in [k for k in self.hub.sticky if k.startswith("fx:")]:
+                del self.hub.sticky[key]
+        elif clear:
+            self.hub.sticky.pop(f"fx:{clear}", None)
+        self.hub.broadcast(msg, sticky_key=f"fx:{layers[0]}" if len(layers) == 1 else None)
+        if len(layers) > 1:
+            # Split, so each layer's replay stands on its own.
+            for layer in layers:
+                part = [e for e in effects if e.layer == layer
+                        and (e.args.get("persist") or e.args.get("duration") == 0)]
+                self.hub.sticky[f"fx:{layer}"] = {"type": "effects",
+                                                  "effects": [e.to_json() for e in part]}
 
     # --- the main loop -----------------------------------------------------
     def feed(self, state: TableState) -> ShotWindow | None:
@@ -216,6 +246,9 @@ class Engine:
             # as a shot that moved it from nowhere.
             self.detector.reset(state)
             return None
+
+        self._last_settled = state.settled and not state.obstructed
+        self.tick_game()
 
         window = self.detector.push(state)
 
@@ -278,6 +311,38 @@ class Engine:
         if self.on_shot:
             self.on_shot(window)
         return window
+
+    # --- the game clock -------------------------------------------------------
+    def tick_game(self) -> None:
+        """Give a timed game its chance to act when no shot is happening.
+
+        Cheap and silent for every game that does not care: the base hook
+        returns None and this does nothing at all.
+        """
+        game = self.game
+        if game is None or game.over:
+            return
+        if not self._tick_lock.acquire(blocking=False):
+            return      # the other thread is already in here; one is enough
+        try:
+            if game is not self.game or game.over:
+                return
+            res = game.on_tick(time.time(), self._last_settled)
+            if res is None:
+                return
+            if res.game_over:
+                game.over = True
+                game.winner = res.winner
+                if res.winner is not None:
+                    res.effects = res.effects + game.win_effects(res.winner)
+                if self.recorder:
+                    self.recorder.finish(res.winner)
+            if res.message:
+                game.log.append(res.message)
+            self.emit_effects(res.effects)
+            self.push_scoreboard()
+        finally:
+            self._tick_lock.release()
 
     # --- ball in hand ---------------------------------------------------------
     @property
@@ -356,9 +421,23 @@ class Engine:
             self.attract.games = available(self.ball_set)
             self.attract.start()
 
+    def _ensure_heartbeat(self) -> None:
+        """Start the once-a-second thread if it is not already running.
+
+        A game clock has to keep running when the camera does not: between
+        shots, during a long argument about the last one, or with the feed
+        stalled entirely. The heartbeat is the only thing that ticks
+        regardless, so a timed game needs it even when the attract mode is
+        switched off. Starting it on demand rather than always keeps an
+        engine that never runs a game — most of the test suite — thread-free.
+        """
+        if not self._heart.is_alive() and not self._heart_stop.is_set():
+            self._heart.start()
+
     def _heartbeat(self) -> None:
         while not self._heart_stop.wait(1.0):
             try:
+                self.tick_game()
                 if (self.idle_after > 0 and not self.attract.active
                         and self.idle.should_attract()):
                     self.attract.games = available(self.ball_set)

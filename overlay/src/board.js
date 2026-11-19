@@ -186,10 +186,47 @@ const rosterNames = () =>
   roster.map((s) => s.trim()).filter(Boolean);
 
 // --- scoreboard -----------------------------------------------------------
+// --- the game clock -------------------------------------------------------
+// The scoreboard counts down on its own between updates, for the same reason
+// the projector does: the number is arithmetic, and putting it on the wire
+// thirty times a second to say what the client could work out itself would be
+// the busiest message in the system by far. Each scoreboard push re-syncs it.
+let clockState = null;
+let clockSeen = 0;
+
+function setClock(c) {
+  clockState = c || null;
+  clockSeen = performance.now();
+  drawClock();
+}
+
+function clockLeft() {
+  if (!clockState) return 0;
+  if (!clockState.running) return clockState.remaining;
+  return Math.max(0, clockState.remaining - (performance.now() - clockSeen) / 1000);
+}
+
+function drawClock() {
+  const box = el('game-clock');
+  if (!box) return;
+  if (!clockState) { box.hidden = true; return; }
+  box.hidden = false;
+  const left = clockLeft();
+  el('clock-left').textContent = left >= 10 ? left.toFixed(0) : left.toFixed(1);
+  el('clock-note').textContent = clockState.running ? 'left'
+    : left <= 0 ? 'boom' : 'held';
+  box.classList.toggle('held', !clockState.running && left > 0);
+  box.classList.toggle('warn', left <= 10 && left > 5);
+  box.classList.toggle('critical', left <= 5);
+}
+
+setInterval(drawClock, 100);
+
 function render() {
   if (!board) return;
   el('game-title').textContent = board.title;
   el('shot-no').textContent = board.shot_number + 1;
+  setClock(board.clock);
 
   if (board.over) {
     const w = board.winner !== null && board.players[board.winner];

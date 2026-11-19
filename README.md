@@ -37,11 +37,16 @@ colour-coded shot feed:
   English 8-Ball (two shots after a foul) and Blackball (free shot) — with
   fouls: wrong ball first, scratch, no rail after contact, black early,
   potting the opponent's ball, illegal break.
-- **Three projection-native game modes** — Hotspots, Pocket Roulette and a
-  graded Position Drill — that only make sense on a table with a projector.
-- **26 projected effects**: pocket flares, explosions, ball trails, ghost-ball
-  aiming lines with the tangent line and cut angle, glowing zones, fireworks,
-  lightning, on-cloth banners.
+- **Four party and practice modes** — Hotspots, Pocket Roulette, a graded
+  Position Drill and Time Bomb — built around the projector rather than
+  bolted onto a normal frame.
+- **Time Bomb**: thirty seconds on the clock, every ball you pot buys you
+  more, and the rack goes up when it runs out. The clock stops at the moment
+  the cue was struck, not when the balls stopped rolling, so a long pot
+  played in time still counts. Plays with reds and yellows.
+- **27 projected effects**: pocket flares, explosions, ball trails, ghost-ball
+  aiming lines with the tangent line and cut angle, glowing zones, a
+  countdown clock, fireworks, lightning, on-cloth banners.
 - **Both calibrations in the UI, no terminal.** Setup → Camera finds the
   camera, takes a picture and takes four taps to learn where the table is;
   Setup → Projector nudges the projected outline onto the cushions. Works on
@@ -104,7 +109,7 @@ colour-coded shot feed:
   actually on, projected live, with what it will hit.
 - **Nothing lost on a restart.** `--resume` picks up a frame that was
   interrupted, and career totals span every recording.
-- **240 tests** covering geometry, shot detection, every rule set, the full
+- **266 tests** covering geometry, shot detection, every rule set, the full
   pipeline end to end, and the overlay's own effect timings (those run the
   JavaScript under node, and skip if node isn't installed).
 

@@ -934,6 +934,89 @@ export class CueContact extends Effect {
   }
 }
 
+export class Countdown extends Effect {
+  defaultDuration = 0;
+  constructor(args) { super(args); this.layer = 'hud'; this.persist = true; }
+
+  /**
+   * The clock is driven here, not over the socket.
+   *
+   * The server sends how many seconds are left and whether it is running,
+   * and this counts down locally from the moment it arrives. Two reasons:
+   * a deadline would need the browser's clock to agree with the engine's,
+   * which it has no reason to, and streaming the number would put a message
+   * on the wire for every frame of a thing that is just arithmetic. Each
+   * shot sends a fresh reading, so it cannot drift far.
+   */
+  update(dt) {
+    super.update(dt);
+    if (this.waiting) return;
+    if (this.args.running) {
+      this.left = Math.max(0, (this.left ?? this.args.remaining ?? 0) - dt);
+    } else if (this.left === undefined) {
+      this.left = this.args.remaining ?? 0;
+    }
+  }
+
+  draw(ctx, view, scene) {
+    const a = this.args;
+    const left = this.left ?? a.remaining ?? 0;
+    // Scaled to the most time this player has ever held, not to the starting
+    // thirty seconds: bank a few balls and you are over the start, where a
+    // bar against the start would just sit pinned at full and say nothing.
+    this.peak = Math.max(this.peak ?? a.total ?? 30, left);
+    const frac = clamp01(left / this.peak);
+    // Red from ten seconds, and a pulse under five, so the state of the game
+    // is readable from across the room without reading the number.
+    const urgent = left <= 10;
+    const critical = left <= 5;
+    const beat = critical && left > 0 ? 0.75 + 0.25 * Math.sin(this.t * 11) : 1;
+    const tone = adapt(a.tone === 'bad' || critical ? '#ff2d55'
+      : urgent ? '#fb923c' : '#4ade80');
+
+    const cx = scene.table.length / 2;
+    const cy = 150;
+    const [sx, sy] = view.project(cx, cy);
+
+    ctx.save();
+    ctx.globalAlpha = 0.95 * beat;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = Math.max(2, view.mm(7));
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillStyle = tone;
+    ctx.font = `800 ${Math.round(view.mm(a.running || left > 0 ? 120 : 110))}px system-ui, sans-serif`;
+    const txt = left >= 10 ? left.toFixed(0)
+      : left > 0 ? left.toFixed(1) : '0.0';
+    ctx.strokeText(txt, sx, sy);
+    ctx.fillText(txt, sx, sy);
+
+    // A bar rather than a ring: on a 2:1 table a ring either shrinks to
+    // nothing or crosses where the balls are.
+    const w = scene.table.length * 0.34;
+    const [bx0, by0] = view.project(cx - w / 2, cy + 110);
+    const [bx1] = view.project(cx + w / 2, cy + 110);
+    const h = Math.max(3, view.mm(26));
+    // The empty part of the track has to be drawn in light, not in black: on
+    // a projector black is simply no light, so a dark track on dark cloth is
+    // not a track at all — you lose any sense of how much is gone.
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = tone;
+    ctx.fillRect(bx0, by0 - h / 2, bx1 - bx0, h);
+    ctx.globalAlpha = 0.95 * beat;
+    ctx.fillRect(bx0, by0 - h / 2, (bx1 - bx0) * frac, h);
+
+    if (!a.running && left > 0) {
+      ctx.globalAlpha = 0.7;
+      ctx.font = `700 ${Math.round(view.mm(44))}px system-ui, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      const [px, py] = view.project(cx, cy + 190);
+      ctx.fillText('HOLD', px, py);
+    }
+    ctx.restore();
+  }
+}
+
 export const EFFECTS = {
   placement_area: PlacementArea,
   placement_ok: PlacementOk,
@@ -967,6 +1050,7 @@ export const EFFECTS = {
   lives_bar: LivesBar,
   call_pocket_prompt: CallPocketPrompt,
   assign_group: AssignGroup,
+  countdown: Countdown,
 };
 
 export function makeEffect(name, args, scene) {
