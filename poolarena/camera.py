@@ -151,6 +151,64 @@ class CameraService:
             "image": "data:image/jpeg;base64," + base64.b64encode(blob).decode(),
         }
 
+    # --- pre-flight --------------------------------------------------------
+    def run_check(self, frames: int = 40, expect: int = 16,
+                  detector_cfg: dict | None = None) -> dict[str, Any]:
+        """The same checks as `python -m poolarena doctor`, from the browser.
+
+        Reuses whichever camera the Camera tab already opened, so the person
+        setting up a table does not have to find a terminal to answer "is
+        this going to work" — which is the question they actually have, and
+        the one the tablet is in their hands for.
+        """
+        from .doctor import Doctor
+        from .vision.calibrate import Calibration
+        from .vision.detect import build_detector
+        from .vision.pipeline import VisionPipeline
+
+        if self.source is None:
+            return {"ok": False, "error": "camera not open",
+                    "hint": "Connect the camera first, on the Camera tab."}
+        if not self.calibration_path.exists():
+            return {"ok": False, "error": "no calibration",
+                    "hint": "Calibrate the camera first — the printed "
+                            "markers are the quick way."}
+        try:
+            calib = Calibration.load(self.calibration_path)
+        except Exception as exc:
+            return {"ok": False, "error": f"calibration will not load: {exc}"}
+
+        pipe = VisionPipeline(self.table, calib,
+                              build_detector(detector_cfg or {}, self.table),
+                              name=self.spec or "camera")
+
+        service = self
+
+        class _Rig:
+            """One camera, read under the service's lock."""
+            views = [type("V", (), {"pipeline": pipe})()]
+
+            def read(self):
+                with service._lock:
+                    if service.source is None:
+                        return None
+                    got = service.source.read()
+                if not got or got[0] is None:
+                    return None
+                return pipe.process(got[0], got[1] if len(got) > 1 else None)
+
+        checks = Doctor(self.table, _Rig(), expected_balls=expect,
+                        frames=frames).run()
+        return {
+            "ok": True,
+            "ready": not any(c.status == "fail" for c in checks),
+            "checks": [{"name": c.name, "status": c.status,
+                        "detail": c.detail, "remedy": c.remedy,
+                        "numbers": {k: (round(v, 2) if isinstance(v, float) else v)
+                                    for k, v in c.numbers.items()}}
+                       for c in checks],
+        }
+
     # --- calibration -------------------------------------------------------
     def calibrate(self, points, image_size=None) -> dict[str, Any]:
         """Four clicked corners (TL, TR, BR, BL) in image pixels -> homography.

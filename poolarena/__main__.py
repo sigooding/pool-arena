@@ -64,8 +64,18 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
     bs = ball_set or get_ball_set(None)
     cam = camera or CameraService(table=table,
                                   calibration_path=CONFIG / "calibration.json")
+    def game_art() -> list[str]:
+        """Which games have a picture, so the browser never asks for one
+        that is not there. Ten 404s in the console on every load is the kind
+        of noise that hides a real error later."""
+        art = ROOT / "overlay" / "img" / "games"
+        if not art.is_dir():
+            return []
+        return sorted(f.stem for f in art.glob("*.webp"))
+
     routes = {
-        "/api/games": lambda: {"games": available(bs), "ball_set": bs.to_json()},
+        "/api/games": lambda: {"games": available(bs), "ball_set": bs.to_json(),
+                               "art": game_art()},
         "/api/table": lambda: table.to_json(),
         "/api/camera/status": cam.status,
         "/api/camera/snapshot": cam.snapshot_json,
@@ -113,6 +123,11 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             detector_cfg, m.get("detector", "color"), m.get("weights", ""),
             float(m.get("conf", 0.4))),
         "/api/detector/test": test_detector,
+        "/api/camera/check": lambda m: cam.run_check(
+            frames=max(5, min(240, int(m.get("frames", 40)))),
+            expect=max(1, min(22, int(m.get("expect", 16)))),
+            detector_cfg=(json.loads(detector_cfg.read_text())
+                          if detector_cfg.exists() else {})),
         "/api/camera/markers": lambda m: cam.calibrate_markers(),
         "/api/camera/marker_sheet": lambda m: _marker_sheet(),
         "/api/session": lambda m: (rec.load_session(RECORDINGS, m.get("id", ""))

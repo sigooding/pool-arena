@@ -11,6 +11,14 @@ const el = (id) => document.getElementById(id);
 let ws = null;
 let retry = 400;
 let games = [];
+// Which games have artwork on disk. Asked for once, so the picker can skip
+// building an <img> for a file that is not there — the games list itself
+// arrives over the socket and has no business knowing about the web root.
+let gameArt = [];
+fetch('/api/games')
+  .then((r) => r.json())
+  .then((d) => { gameArt = d.art || []; if (games.length) renderGames(); })
+  .catch(() => {});
 let picked = null;
 let board = null;
 let mini = null;
@@ -115,14 +123,51 @@ function renderGames() {
   wrap.textContent = '';
   for (const g of games) {
     const b = document.createElement('button');
-    b.className = 'chip';
+    b.className = 'game-card';
     b.type = 'button';
+    // The accent colour and the artwork are both keyed off this, so a game
+    // added later picks up a sensible look without touching the CSS.
+    b.dataset.game = g.name;
     b.disabled = g.supported === false;
     b.setAttribute('aria-pressed', String(picked === g.name));
-    b.innerHTML = `<b></b><i></i>`;
-    b.querySelector('b').textContent = g.title;
-    b.querySelector('i').textContent = g.description
-      + (g.needs_projector && !hasProjector ? ' — guides shown here' : '');
+
+    const art = document.createElement('span');
+    art.className = 'art';
+    // Artwork is optional on purpose. A game with none gets the accent glow
+    // drawn in CSS, which is sharp at any size — so the picker never has a
+    // hole in it while the art is still being made. The server says which
+    // files exist rather than letting the browser find out by 404.
+    const hasArt = gameArt.includes(g.name);
+    if (hasArt) {
+      const img = new Image();
+      img.alt = '';
+      img.loading = 'lazy';
+      img.onload = () => art.classList.add('has-art');
+      img.src = `img/games/${g.name}.webp`;
+      art.appendChild(img);
+    }
+
+    const title = document.createElement('b');
+    title.textContent = g.title;
+
+    // The artwork carries its own title and description, and a title never
+    // changes — "8-Ball" is always "8-Ball". What does change is everything
+    // underneath: a game goes unplayable when the table is set to reds and
+    // yellows, and a projector-only game has to say where its guides went.
+    // So where there is artwork the card shuts up and lets it speak, and the
+    // strip comes back only when it has something the picture cannot say.
+    const live = [];
+    if (g.supported === false) live.push('needs numbered balls');
+    if (g.needs_projector && !hasProjector) live.push('guides shown here');
+
+    const note = document.createElement('i');
+    note.textContent = hasArt && live.length ? live.join(' — ')
+      : hasArt ? ''
+      : g.description + (live.length ? ' — ' + live.join(' — ') : '');
+    note.hidden = hasArt && !live.length;
+    if (hasArt) b.classList.add('arted');
+
+    b.append(art, title, note);
     if (!b.disabled) b.onclick = () => pick(g.name);
     wrap.appendChild(b);
   }
@@ -802,3 +847,74 @@ mini = new MiniTable(el('mini'));
 renderFeed();
 renderRoster();
 connect();
+
+// --- the pre-flight check -------------------------------------------------
+// The same checks as `python -m poolarena doctor`, run from the tablet. The
+// person setting up a table has the tablet in their hands and the question
+// "is this going to work?" in their head; making them find a terminal to
+// answer it is the wrong way round.
+const CHECK_MARK = { ok: '✓', warn: '!', fail: '✕', skip: '–' };
+
+function renderChecks(checks) {
+  const list = el('check-list');
+  list.textContent = '';
+  for (const c of checks) {
+    const row = document.createElement('div');
+    row.className = `check ${c.status}`;
+
+    // Not 'mark': the header's brand logo already owns that class, and a
+    // glyph styled as a pool ball is not a tick.
+    const mark = document.createElement('span');
+    mark.className = 'verdict';
+    mark.textContent = CHECK_MARK[c.status] || '?';
+
+    const body = document.createElement('div');
+    const name = document.createElement('b');
+    name.textContent = c.name;
+    const detail = document.createElement('span');
+    detail.className = 'detail';
+    detail.textContent = c.detail;
+    body.append(name, detail);
+
+    // The remedy only when there is something to do about it; on a passing
+    // check it is noise, and a wall of advice is how a report stops being read.
+    if (c.remedy && (c.status === 'fail' || c.status === 'warn')) {
+      const fix = document.createElement('p');
+      fix.className = 'remedy';
+      fix.textContent = c.remedy;
+      body.appendChild(fix);
+    }
+    row.append(mark, body);
+    list.appendChild(row);
+  }
+}
+
+el('check-run').onclick = async () => {
+  const btn = el('check-run');
+  const status = el('check-status');
+  btn.disabled = true;
+  status.className = 'cam-status';
+  status.textContent = 'Reading the table — leave it alone…';
+  el('check-list').textContent = '';
+  try {
+    const r = await api('/api/camera/check', {
+      frames: 40,
+      expect: Number(el('check-expect').value) || 16,
+    });
+    if (!r.ok) {
+      status.className = 'cam-status bad';
+      status.textContent = [r.error, r.hint].filter(Boolean).join(' — ');
+      return;
+    }
+    renderChecks(r.checks);
+    status.className = `cam-status ${r.ready ? 'ready' : 'bad'}`;
+    status.textContent = r.ready
+      ? 'Ready — nothing here stops a game.'
+      : 'Not ready. Fix the ✕ lines; the rest cannot be trusted until they pass.';
+  } catch (err) {
+    status.className = 'cam-status bad';
+    status.textContent = String(err);
+  } finally {
+    btn.disabled = false;
+  }
+};

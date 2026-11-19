@@ -47,6 +47,7 @@
       <button data-tab="projector">Projector</button>
       <button data-tab="camera">Camera</button>
       <button data-tab="detector">Detector</button>
+      <button data-tab="check">Check</button>
     </nav>
 
     <div class="tab" data-panel="game">
@@ -176,6 +177,31 @@
 
         <div class="model-list" id="model-list"></div>
       </div>
+    </div>
+
+    <div class="tab" data-panel="check" hidden>
+      <p class="note">
+        Walks the chain from the lens to a list of balls and puts a number on
+        every link. It changes nothing and starts no game, so it is safe to
+        run at any point &mdash; including twice, once per camera, to settle
+        which one to keep on numbers rather than on how it felt.
+      </p>
+      <div class="warn-box ok-box">
+        <strong>Rack up first.</strong> All the balls on the table, nobody
+        leaning over it, and leave it alone while it reads. The check that
+        matters most is <strong>stability</strong>: if a ball that is sitting
+        still appears to wander more than a few millimetres, the table never
+        reads as settled and shots never resolve.
+      </div>
+      <div class="setup-actions">
+        <button class="go" id="check-run">Run the check</button>
+        <label class="field inline">
+          <span>Balls on the table</span>
+          <input id="check-expect" type="number" min="1" max="22" value="16">
+        </label>
+      </div>
+      <div class="cam-status" id="check-status">not run yet</div>
+      <div class="checks" id="check-list"></div>
     </div>
 
   </section>
