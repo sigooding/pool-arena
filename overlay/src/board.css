@@ -819,3 +819,54 @@ button:disabled:hover { background: var(--surface-2); }
   letter-spacing: 0;
 }
 .field.inline input { flex: 0 0 96px; min-width: 0; }
+
+
+/* --- the splash: what you see before anyone has racked up -----------------
+   The table view is meaningless with no game on it, and a scoreboard of
+   zeroes is worse than meaningless — it looks like something has gone
+   wrong. So until a game is chosen the page is a picker and nothing else. */
+.splash {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 3vh, 30px);
+  align-items: center;
+  justify-content: center;
+  /* Leaves the top of the viewport to the artwork's own title, which is
+     where it sits in the picture. */
+  min-height: min(96vh, 980px);
+  padding: clamp(150px, 26vh, 330px) 0 clamp(16px, 4vh, 44px);
+  justify-content: flex-start;
+  text-align: center;
+}
+.splash[hidden] { display: none; }
+.splash .games {
+  width: min(1180px, 94vw);
+  grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 20vw, 210px), 1fr));
+}
+.splash-foot {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.splash-foot .go { font-size: 16px; padding: 16px 30px; }
+
+/* With no game on, the artwork is the point rather than a texture: the full
+   picture, title and all, barely dimmed at the top where that title sits and
+   more heavily further down so the cards still read over the table in it. */
+body.no-game {
+  background-image:
+    linear-gradient(rgba(9, 13, 11, 0.16) 0%,
+                    rgba(9, 13, 11, 0.28) 20%,
+                    rgba(9, 13, 11, 0.76) 46%,
+                    rgba(9, 13, 11, 0.9) 70%),
+    url("../img/splash.webp");
+  background-position: center top;
+}
+body.no-game .brand > div { visibility: hidden; }   /* the picture says it */
+body.no-game .grid,
+body.no-game .bar-right .shotno,
+body.no-game #undo,
+body.no-game #redo { display: none; }
+body.no-game .bar { border-bottom: 0; background: transparent; }

@@ -200,10 +200,15 @@ def cmd_demo(args) -> int:
     sim = FakeTable(table=table, rng=random.Random(args.seed))
     sim.rack("9ball" if args.game == "9ball" else "8ball")
     engine.detector.reset(sim.state())
-    engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
+    if args.game:
+        engine.start_game(args.game,
+                          players=[p.strip() for p in args.players.split(",")])
+    else:
+        engine.push_scoreboard()      # says "no game" rather than nothing
 
     print(f"\n  DEMO — these balls are simulated, no camera is being read")
-    print(f"  {args.game}, {args.fps} fps, skill {args.skill}")
+    print(f"  {args.game or 'waiting for a game to be chosen'}, "
+          f"{args.fps} fps, skill {args.skill}")
     print("  ctrl-c to stop\n")
 
     frame_time = 1.0 / args.fps
@@ -418,9 +423,14 @@ def cmd_run(args) -> int:
     if resumed:
         print(f"  resumed     {', '.join(resumed['players'])}, "
               f"{resumed['shots']} shots already played")
-    else:
+    elif args.game:
         engine.start_game(args.game,
                           players=[p.strip() for p in args.players.split(",")])
+    else:
+        # No game yet: the scoreboard shows its splash and waits for someone
+        # to pick one. Scoring does nothing until then, which is right — a
+        # table nobody has started a game on is not mid-frame.
+        engine.push_scoreboard()
 
     if args.learn_cloth:
         rig.learn_cloth()
@@ -602,7 +612,8 @@ def cmd_replay(args) -> int:
     hub = Hub()
     engine = Engine(table=table, hub=hub, ball_set=ball_set)
     start_server(hub, table, args.port, not args.no_browser, ball_set)
-    engine.start_game(args.game, players=[p.strip() for p in args.players.split(",")])
+    engine.start_game(args.game or "8ball",
+                      players=[p.strip() for p in args.players.split(",")])
 
     records = [json.loads(l) for l in Path(args.log).read_text().splitlines() if l.strip()]
     print(f"  replaying {len(records)} shots")
@@ -667,7 +678,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="american (numbered 1-15) | english (reds and yellows)")
     common.add_argument("--port", type=int, default=8777)
     common.add_argument("--no-browser", action="store_true")
-    common.add_argument("--game", default="8ball")
+    common.add_argument("--game", default=None,
+                        help="start this game straight away. Left out, it "
+                             "waits on the splash screen until somebody "
+                             "picks one from the scoreboard.")
     common.add_argument("--players", default="Player 1, Player 2")
     common.add_argument("--log", help="append shot records here (jsonl)")
 

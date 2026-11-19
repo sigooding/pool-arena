@@ -119,7 +119,26 @@ function applyBallSet(bs) {
 }
 
 function renderGames() {
-  const wrap = el('games');
+  // Two places show the same picker — the splash and the setup tab — and
+  // they have to agree, so they are built from the same list rather than
+  // kept in step by hand.
+  for (const id of ['games', 'splash-games']) renderGamesInto(id);
+  const hint = el('roster-hint');
+  if (hint) hint.dataset.set = ballSetInfo.title || '';
+  const playable = games.filter((g) => g.supported !== false);
+  if (playable.length && !playable.some((g) => g.name === picked)) {
+    pick(playable[0].name, false);
+  }
+}
+
+function renderGamesInto(containerId) {
+  const wrap = el(containerId);
+  if (!wrap) return;
+  // On the splash a card IS the start button — tapping a game begins it,
+  // which is the whole point of a front door. In the setup tab the same
+  // card only selects, because there you are still picking players and
+  // options before you commit.
+  const startsOnTap = containerId === 'splash-games';
   wrap.textContent = '';
   for (const g of games) {
     const b = document.createElement('button');
@@ -168,15 +187,13 @@ function renderGames() {
     if (hasArt) b.classList.add('arted');
 
     b.append(art, title, note);
-    if (!b.disabled) b.onclick = () => pick(g.name);
+    if (!b.disabled) {
+      b.onclick = () => {
+        pick(g.name);              // also fits the roster to this game
+        if (startsOnTap) startGame();
+      };
+    }
     wrap.appendChild(b);
-  }
-  const hint = el('roster-hint');
-  if (hint) hint.dataset.set = ballSetInfo.title || '';
-  // Never leave an unplayable game selected.
-  const playable = games.filter((g) => g.supported !== false);
-  if (playable.length && !playable.some((g) => g.name === picked)) {
-    pick(playable[0].name, false);
   }
 }
 
@@ -222,8 +239,12 @@ function fitRoster() {
 
 function pick(name, fixRoster = true) {
   picked = name;
-  [...el('games').children].forEach((c, i) =>
-    c.setAttribute('aria-pressed', String(games[i].name === name)));
+  for (const id of ['games', 'splash-games']) {
+    const wrap = el(id);
+    if (!wrap) continue;
+    [...wrap.children].forEach((c, i) =>
+      c.setAttribute('aria-pressed', String(games[i] && games[i].name === name)));
+  }
   if (fixRoster) fitRoster(); else renderRoster();
 }
 
@@ -268,6 +289,7 @@ function drawClock() {
 setInterval(drawClock, 100);
 
 function render() {
+  showSplash(!board);
   if (!board) return;
   el('game-title').textContent = board.title;
   el('shot-no').textContent = board.shot_number + 1;
@@ -1101,3 +1123,31 @@ el('depth-on').onclick = async () => {
     ? 'Depth will find the balls from the next restart. Colour still names them.'
     : 'Back to colour only, from the next restart.');
 };
+
+// --- the splash -----------------------------------------------------------
+// With no game on, a table view has nothing to show and a scoreboard of
+// zeroes reads as a fault rather than as a beginning. So the page is a
+// picker and nothing else until somebody chooses.
+function showSplash(on) {
+  const splash = el('splash');
+  if (!splash) return;
+  splash.hidden = !on;
+  document.body.classList.toggle('no-game', !!on);
+  el('game-title').textContent = on ? 'Pool Arena' : el('game-title').textContent;
+  if (on) {
+    setState('no game yet', false);
+    const who = el('splash-players');
+    if (who) {
+      who.textContent = roster.length
+        ? `Tap a game to start — ${roster.join(' v ')}`
+        : 'Tap a game to start';
+    }
+  }
+}
+
+el('splash-options').onclick = () => {
+  el('toggle-setup').click();
+  const panel = el('setup');
+  if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+

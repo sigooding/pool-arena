@@ -173,12 +173,21 @@ class Engine:
                 "players": prior.get("players")}
 
     def push_scoreboard(self) -> None:
-        if self.game:
-            board = self.game.scoreboard()
-            board["can_undo"] = self.can_undo
-            board["can_redo"] = self.can_redo
-            self.hub.broadcast({"type": "scoreboard", "scoreboard": board},
+        """The board, or an explicit null when no game is running.
+
+        The null matters: a page that has simply not heard yet and a table
+        with no game on it look identical from the client, and one of them
+        should show a splash screen while the other shows nothing at all.
+        """
+        if not self.game:
+            self.hub.broadcast({"type": "scoreboard", "scoreboard": None},
                                sticky_key="scoreboard")
+            return
+        board = self.game.scoreboard()
+        board["can_undo"] = self.can_undo
+        board["can_redo"] = self.can_redo
+        self.hub.broadcast({"type": "scoreboard", "scoreboard": board},
+                           sticky_key="scoreboard")
 
     def push_history(self) -> None:
         """The shot list, replayed to anyone who connects.

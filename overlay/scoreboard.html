@@ -290,6 +290,19 @@
 
   </section>
 
+  <!-- The front door. Shown whenever no game is running, which is also the
+       state the table is in before anybody racks up. -->
+  <section class="splash" id="splash" hidden>
+    <!-- No heading and no strapline here on purpose: the artwork carries
+         its own title, and anything else lands on the rack of balls painted
+         underneath it. The cards and the button say the rest. -->
+    <div class="games" id="splash-games"></div>
+    <div class="splash-foot">
+      <button id="splash-options">Options</button>
+      <span class="hint" id="splash-players"></span>
+    </div>
+  </section>
+
   <main class="grid">
     <section class="felt-wrap">
       <canvas id="mini"></canvas>
