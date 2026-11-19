@@ -330,13 +330,31 @@ class YoloDetector(BallDetector):
         return out
 
 
-def build_detector(cfg: dict[str, Any]) -> BallDetector:
+def ball_px_for(table, px_per_mm: float = 0.5) -> float:
+    """A ball's diameter in the warped top-down view.
+
+    Derived rather than configured, because the two disagreed: the shipped
+    config said 36.0 while its own comment worked out 28.6, and the wrong
+    value quietly costs detections — a quarter of them on the test rack,
+    because blobs the size of a ball are rejected for not being the size of
+    a ball. The table already knows how big its balls are, so ask it.
+
+    It matters more than it looks on an English table: UK balls are 2 inches
+    against the American 2 and a quarter, which is a tenth off the diameter
+    and well outside what the blob filter tolerates.
+    """
+    return 2.0 * float(table.ball_radius) * float(px_per_mm)
+
+
+def build_detector(cfg: dict[str, Any], table=None,
+                   px_per_mm: float = 0.5) -> BallDetector:
     kind = (cfg or {}).get("detector", "color")
     if kind == "yolo":
         return YoloDetector(cfg["weights"], conf=cfg.get("conf", 0.4),
                             device=cfg.get("device"))
+    derived = ball_px_for(table, px_per_mm) if table is not None else 36.0
     return ColorBallDetector(
-        ball_px=cfg.get("ball_px", 36.0),
+        ball_px=cfg.get("ball_px") or derived,
         cloth_tolerance=cfg.get("cloth_tolerance", 34),
         min_fill=cfg.get("min_fill", 0.45),
         ball_set=cfg.get("ball_set", "american"),

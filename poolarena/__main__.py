@@ -310,10 +310,13 @@ def cmd_run(args) -> int:
     det_path = CONFIG / "detector.json"
     if det_path.exists():
         det_cfg = json.loads(det_path.read_text())
-    det_cfg.setdefault("ball_set", ball_set.name)
+    # Not setdefault: --ball-set is an explicit instruction and has to beat
+    # whatever detector.json happens to say, or the flag silently does
+    # nothing and the colour model stays wrong for the balls on the table.
+    det_cfg["ball_set"] = ball_set.name
     if args.weights:
         det_cfg = {"detector": "yolo", "weights": args.weights}
-    detector = build_detector(det_cfg)
+    detector = build_detector(det_cfg, table)
 
     hub = Hub()
     engine = Engine(table=table, hub=hub, ball_set=ball_set,
@@ -326,7 +329,7 @@ def cmd_run(args) -> int:
     views = []
     for c in specs:
         calib = Calibration.load(Path(c["calibration"]))
-        pipe = VisionPipeline(table, calib, build_detector(det_cfg),
+        pipe = VisionPipeline(table, calib, build_detector(det_cfg, table),
                               camera_height_mm=float(c.get("height_mm") or 0.0),
                               nadir=tuple(c["nadir"]) if c.get("nadir") else None,
                               name=c["name"])
@@ -406,6 +409,90 @@ def cmd_run(args) -> int:
 
 
 # --- calibrate -----------------------------------------------------------
+def cmd_doctor(args) -> int:
+    """Walk the chain from the lens to a list of balls, and say where it breaks.
+
+    Deliberately read-only: it changes no config and starts no game, so it is
+    safe to run on a table mid-setup, and safe to run twice — once with the
+    depth camera and once without — to see which way is better on numbers
+    rather than on impressions.
+    """
+    from .doctor import Doctor, report
+    from .vision import open_source
+    from .vision.detect import build_detector
+    from .vision.multi import CameraView, MultiPipeline
+    from .vision.pipeline import VisionPipeline
+
+    table = load_table(args)
+    specs = camera_specs(args)
+    missing = [c for c in specs if not Path(c["calibration"]).exists()]
+    if missing:
+        for c in missing:
+            print(f"  [FAIL] calibration   none at {c['calibration']}")
+        print(f"\n  Nothing downstream can be checked without it.\n"
+              f"  Run: python -m poolarena calibrate --source {specs[0]['source']}",
+              file=sys.stderr)
+        return 2
+
+    ball_set = load_ball_set(args)
+    det_cfg: dict = {}
+    det_path = CONFIG / "detector.json"
+    if det_path.exists():
+        det_cfg = json.loads(det_path.read_text())
+    det_cfg["ball_set"] = ball_set.name
+    if args.weights:
+        det_cfg = {"detector": "yolo", "weights": args.weights}
+
+    views = []
+    for c in specs:
+        calib = Calibration.load(Path(c["calibration"]))
+        pipe = VisionPipeline(table, calib, build_detector(det_cfg, table),
+                              camera_height_mm=float(c.get("height_mm") or 0.0),
+                              nadir=tuple(c["nadir"]) if c.get("nadir") else None,
+                              name=c["name"])
+        depth_calib = Path(c.get("depth_calibration")
+                           or CONFIG / "calibration-depth.json")
+        if args.depth_balls and depth_calib.exists():
+            from .vision.depth import DepthBallFinder
+            from .vision.multi import ColourAndDepth
+            pipe = ColourAndDepth(
+                table, pipe,
+                DepthBallFinder(table=table,
+                                calibration=Calibration.load(depth_calib)),
+                name=c["name"])
+        # Catching this is most of the point: "cannot open camera 0" is the
+        # commonest thing to go wrong on a first setup, and a stack trace is
+        # the least useful way to say it.
+        try:
+            source = open_source(c["source"])
+        except Exception as exc:
+            print(f"\n  [FAIL] source        {c['source']}: {exc}\n")
+            print("  The camera is not answering. In order of likelihood:\n"
+                  "    - another program has it open (close any camera app)\n"
+                  "    - it is on a different index: try --source cam:0, cam:1, cam:2\n"
+                  "    - for the Kinect, --source kinect and a USB 3 port\n"
+                  "    - no camera at all: --source video:some.mp4 checks the\n"
+                  "      rest of the chain against a recording\n", file=sys.stderr)
+            for v in views:
+                v.source.close()
+            return 2
+        views.append(CameraView(c["name"], source, pipe))
+    rig = MultiPipeline(table, views)
+
+    how = ", ".join(c["source"] for c in specs) + (
+        " + depth" if args.depth_balls else "")
+    print(f"\n  Rack up — all {args.expect} balls on the table, nobody "
+          f"leaning over it.\n  Reading {args.frames} frames from {how}.\n")
+    try:
+        checks = Doctor(table, rig, expected_balls=args.expect,
+                        frames=args.frames).run()
+    finally:
+        rig.close()
+    print(report(checks, f"Pre-flight — {table.size}, {ball_set.title}, {how}"))
+    print()
+    return 1 if any(c.status == "fail" for c in checks) else 0
+
+
 def cmd_calibrate(args) -> int:
     from .vision import open_source
     from .vision.calibrate import calibrate_from_frame
@@ -576,6 +663,27 @@ def main(argv: list[str] | None = None) -> int:
                         "clicks. More accurate, repeatable, and it lets the "
                         "camera re-calibrate itself if knocked.")
     c.set_defaults(func=cmd_calibrate)
+
+    doc = sub.add_parser("doctor", parents=[common],
+                         help="check the camera, calibration and detector "
+                              "before a first game")
+    doc.add_argument("--source", default=None,
+                     help="auto|kinect|cam:0|video:path. Comma-separate for two")
+    doc.add_argument("--frames", type=int, default=60,
+                     help="how many frames to judge on")
+    doc.add_argument("--expect", type=int, default=16,
+                     help="how many balls are on the table (16 is a full "
+                          "rack plus the cue ball); lower it to check part "
+                          "way through a game")
+    doc.add_argument("--depth-balls", action="store_true",
+                     help="also find balls with the depth camera, so the "
+                          "report says whether it helps")
+    doc.add_argument("--weights", default=None, help="YOLO weights to test with")
+    doc.add_argument("--camera-height", type=float, default=0.0)
+    doc.add_argument("--camera-nadir", default=None)
+    doc.add_argument("--cameras", help="a cameras.json listing several cameras")
+    doc.add_argument("--calibration", default=str(CONFIG / "calibration.json"))
+    doc.set_defaults(func=cmd_doctor)
 
     mk = sub.add_parser("markers", parents=[common],
                         help="write the printable calibration markers")

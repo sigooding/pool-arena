@@ -109,23 +109,51 @@ colour-coded shot feed:
   actually on, projected live, with what it will hit.
 - **Nothing lost on a restart.** `--resume` picks up a frame that was
   interrupted, and career totals span every recording.
-- **266 tests** covering geometry, shot detection, every rule set, the full
+- **292 tests** covering geometry, shot detection, every rule set, the full
   pipeline end to end, and the overlay's own effect timings (those run the
   JavaScript under node, and skip if node isn't installed).
+
+## Before your first game
+
+```bash
+python -m poolarena doctor
+```
+
+Walks the chain from the lens to a list of balls and puts a number on every
+link — frame rate, calibration error in millimetres, how much of the table
+reads as cloth, how many balls are found, how far a *still* ball wanders
+between frames, whether the colours can be told apart. It changes nothing and
+starts no game, so it is safe to run mid-setup and safe to run twice:
+
+```bash
+python -m poolarena doctor --source cam:0
+python -m poolarena doctor --source kinect --depth-balls
+```
+
+Two reports, same numbers, and the better camera is the one with the better
+numbers rather than the one that felt better. The check that matters most is
+**stability**: a still ball that wanders more than a few millimetres means
+the table never reads as settled, and shots never resolve.
 
 ## What doesn't, yet
 
 - The colour detector is written and reasonable but **has not been tuned
   against a real table** — that needs your cloth, your lights and your camera.
-  Expect to spend an evening on `config/detector.json`.
-- **No cue-ball-in-hand placement.** After a scratch the engine says "ball in
-  hand"; nothing enforces where the cue ball is put back.
+  This is the one part of the system that has never met real hardware, and
+  everything downstream depends on it. Run `python -m poolarena doctor`
+  before your first game; expect to spend an evening on
+  `config/detector.json`.
+- **Live cue-stick tracking is experimental.** It is built and switched on
+  with `run --cue-line`, and it recovers the cue's angle to a twentieth of a
+  degree on synthetic frames — but it has never seen a real cue, and a real
+  cue has a hand and a forearm next to it. Treat it as a thing to try, not a
+  thing to rely on.
+- **Parallax correction is off by default.** The maths is right and unit
+  tested, but it could not be validated end to end here, so it stays off
+  until a real table can show it helps. See `docs/VISION.md`.
 - **UK rules vary by league.** The two published codes are implemented and
   their differences are options, but your pub may play something else; see
   [docs/GAMES.md](docs/GAMES.md).
-- Live cue-stick tracking (the "draw the line I'm actually on" feature) is
-  designed for but not built.
-- No audio.
 
 ## When the table gets a shot wrong
 

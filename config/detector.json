@@ -1,9 +1,9 @@
 {
   "detector": "color",
-  "ball_px": 36.0,
   "cloth_tolerance": 34,
   "min_fill": 0.45,
-  "_comment": "ball_px is a ball's diameter in the WARPED top-down view, which is table length in mm times 0.5. For an 8ft table that is 57.15 * 0.5 = 28.6 px, so raise min_fill and lower ball_px if blobs are being rejected. Switch to YOLO with {\"detector\": \"yolo\", \"weights\": \"best.pt\"}.",
+  "_comment": "Switch to YOLO with {\"detector\": \"yolo\", \"weights\": \"best.pt\"}. Raise min_fill or lower ball_px if real balls are being rejected as blobs.",
   "ball_set": "english",
-  "_ball_set": "english switches the colour model to red/yellow/black/white and turns off stripe detection, which is both simpler and more reliable than the 7-hue American model."
+  "_ball_set": "english switches the colour model to red/yellow/black/white and turns off stripe detection, which is both simpler and more reliable than the 7-hue American model.",
+  "_ball_px": "Left unset on purpose: a ball's size in the warped view is worked out from table.json's ball_radius, so the two cannot disagree. Set ball_px here only to override that."
 }

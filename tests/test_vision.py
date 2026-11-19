@@ -137,9 +137,9 @@ def shadowed(frame, darkness=0.55, soft=False):
     return np.clip(out * (1.0 - m[:, :, None] * darkness), 0, 255).astype(np.uint8)
 
 
-def count_found(frame, **kw):
+def count_found(frame, ball_px=28.6, **kw):
     calib = Calibration.from_corners(IMAGE_CORNERS, TABLE)
-    pipe = VisionPipeline(TABLE, calib, ColorBallDetector(ball_px=28.6, **kw))
+    pipe = VisionPipeline(TABLE, calib, ColorBallDetector(ball_px=ball_px, **kw))
     hit = set()
     for b in pipe.process(frame).balls:
         num, mm = min(LAYOUT.items(), key=lambda kv: math.dist((b.x, b.y), kv[1]))
@@ -162,3 +162,40 @@ def test_shadows_cost_less_than_they_used_to():
     chroma = count_found(frame)
     lightness = count_found(frame, local_threshold=26.0, local_dark=1e9)
     assert chroma >= lightness
+
+
+# --- ball size comes from the table, not from a number typed twice --------
+def test_ball_size_is_derived_from_the_table():
+    """The shipped config said 36.0 while its own comment worked out 28.6,
+    and nothing could notice: a wrong ball size does not error, it just
+    quietly rejects real balls for being the wrong size."""
+    from poolarena.vision.detect import ball_px_for
+    assert ball_px_for(TABLE, 0.5) == pytest.approx(28.6), "2 x 28.6 mm x 0.5"
+
+
+def test_english_balls_derive_a_smaller_size_than_american():
+    """UK balls are 2 inches against 2 and a quarter — a tenth off the
+    diameter, which is outside what the blob filter tolerates."""
+    from poolarena.geometry import Table
+    from poolarena.vision.detect import ball_px_for
+    uk = Table("8ft")
+    uk.ball_radius = 25.4
+    assert ball_px_for(uk, 0.5) == pytest.approx(25.4)
+    assert ball_px_for(uk, 0.5) < ball_px_for(TABLE, 0.5)
+
+
+def test_the_shipped_config_does_not_pin_a_ball_size():
+    """If it ever does again, it can disagree with the table it runs on."""
+    import json
+    from pathlib import Path
+    cfg = json.loads((Path(__file__).resolve().parent.parent
+                      / "config" / "detector.json").read_text())
+    assert "ball_px" not in cfg, "let it derive from table.json's ball_radius"
+
+
+def test_the_derived_size_finds_more_balls_than_the_old_hardcoded_one():
+    """The reason any of this matters, measured rather than asserted."""
+    from poolarena.vision.detect import ball_px_for
+    good = count_found(synthetic_frame(), ball_px=ball_px_for(TABLE, 0.5))
+    old = count_found(synthetic_frame(), ball_px=36.0)
+    assert good > old, f"derived found {good}, the old 36.0 found {old}"
