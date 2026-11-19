@@ -874,8 +874,13 @@ body.no-game .bar { border-bottom: 0; background: transparent; }
 
 /* --- who is playing ------------------------------------------------------
    A sheet over the splash rather than a page of its own: the games stay
-   visible behind it, so backing out is obviously possible. */
-.who {
+   visible behind it, so backing out is obviously possible.
+
+   Named `who-sheet`, not `who`: the shot feed and the session list already
+   use `.who` for the player's name on a row, and a bare `.who` rule here
+   turned every one of those spans into a full-screen blurred overlay. On a
+   scratch, a foul row arrives, and the page vanishes behind it. */
+.who-sheet {
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -885,8 +890,8 @@ body.no-game .bar { border-bottom: 0; background: transparent; }
   background: rgba(5, 8, 10, 0.78);
   backdrop-filter: blur(6px);
 }
-.who[hidden] { display: none; }
-.who-card {
+.who-sheet[hidden] { display: none; }
+.who-sheet-card {
   width: min(460px, 94vw);
   padding: clamp(18px, 4vw, 28px);
   border-radius: 18px;
@@ -894,14 +899,14 @@ body.no-game .bar { border-bottom: 0; background: transparent; }
   background: var(--surface);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.75);
 }
-.who-game {
+.who-sheet-game {
   margin: 0 0 16px;
   font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-.who .name-list { margin-bottom: 14px; }
-.who-go { margin-top: 14px; }
-.who-go .go { flex: 1 1 auto; font-size: 16px; padding: 15px 20px; }
+.who-sheet .name-list { margin-bottom: 14px; }
+.who-sheet-go { margin-top: 14px; }
+.who-sheet-go .go { flex: 1 1 auto; font-size: 16px; padding: 15px 20px; }
 #quit { color: #ff9db1; border-color: rgba(255, 77, 109, 0.4); }
 #quit:hover { background: rgba(255, 77, 109, 0.14); }

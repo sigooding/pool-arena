@@ -109,7 +109,7 @@ colour-coded shot feed:
   actually on, projected live, with what it will hit.
 - **Nothing lost on a restart.** `--resume` picks up a frame that was
   interrupted, and career totals span every recording.
-- **405 tests** covering geometry, shot detection, every rule set, the full
+- **411 tests** covering geometry, shot detection, every rule set, the full
   pipeline end to end, and the overlay's own effect timings (those run the
   JavaScript under node, and skip if node isn't installed).
 
