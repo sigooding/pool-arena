@@ -1,7 +1,33 @@
 # Windows: double-click to run
 
-Six scripts, in the order you will want them. Double-click; no terminal, no
-typing.
+## On a brand new PC
+
+`setup.bat` installs **numpy and OpenCV**, into a private `.venv` folder.
+About 60 MB, a few minutes, and nothing it does touches the rest of the
+machine — delete `.venv` and it is all undone.
+
+It does **not** install these, so do them first:
+
+1. **Python**, from <https://www.python.org/downloads/>. Tick **Add
+   python.exe to PATH** on the installer's first screen — it is off by
+   default and everything else depends on it. Any current version is fine;
+   `setup.bat` checks and will tell you if it is too old.
+2. **This code.** Either `git clone`, or the green **Code** button on GitHub
+   → **Download ZIP**, then unzip it somewhere permanent. Not inside the zip
+   viewer: Windows will let scripts run from there and then lose the files.
+3. **Kinect for Windows SDK 2.0**, from Microsoft — only if you are using the
+   Kinect, and it wants a USB 3 port. Then run `kinect.bat`.
+
+Then `setup.bat`, then `demo.bat` to confirm it all works before the table is
+involved.
+
+Worth knowing: the first time it runs, Windows will ask whether to allow
+network access. Say yes for private networks. That is the local web server
+the projector and the tablet talk to; nothing leaves the machine.
+
+## The scripts
+
+In the order you will want them. Double-click; no terminal, no typing.
 
 | | |
 |---|---|
