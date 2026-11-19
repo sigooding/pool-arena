@@ -145,6 +145,21 @@
     finds balls by shape instead of colour and does not care about light at
     all.</p>
 
+    <p><b>Setup &rarr; Check</b> holds the three things the camera needs to
+    be told, all of which take effect on the next restart:</p>
+    <table class="kv">
+      <tr><td>Which balls</td><td>reds and yellows, or numbered 1&ndash;15.
+        Picks both the playable games and the colour model.</td></tr>
+      <tr><td>Where the camera is</td><td>overhead, long side or end on, plus
+        the height. Removes parallax &mdash; about 26&nbsp;mm on a side
+        mount, against a 70&nbsp;mm pocket.</td></tr>
+      <tr><td>Ball size</td><td>English 25.4&nbsp;mm radius, American 28.6.
+        The detector reads each ball's colour from a patch this size.</td></tr>
+    </table>
+    <p>Whether to use <b>YOLO</b> instead of colour is on the Detector tab.
+    Try colour first: reds and yellows are two well separated hues, which is
+    the easy case, and YOLO is a large download that finds balls by shape.</p>
+
     <h2 id="projector">Projector</h2>
     <p>Open the projector page on the projector's screen and press
     <kbd>f</kbd> for fullscreen. Then <em>Setup → Projector</em> and nudge the

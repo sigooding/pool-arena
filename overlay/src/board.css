@@ -804,6 +804,18 @@ button:disabled:hover { background: var(--surface-2); }
 .check.warn { border-color: rgba(251, 146, 60, 0.4); }
 .check.fail { border-color: rgba(255, 77, 109, 0.45); }
 
-.field.inline { flex-direction: row; align-items: center; gap: 9px; }
-.field.inline span { white-space: nowrap; color: var(--dim); font-size: 12.5px; }
-.field.inline input { flex: 0 0 76px; min-width: 0; }
+.field.inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+.field.inline span {
+  white-space: nowrap;
+  color: var(--dim);
+  font-size: 12.5px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.field.inline input { flex: 0 0 96px; min-width: 0; }

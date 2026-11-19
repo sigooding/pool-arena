@@ -107,6 +107,23 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             frame = cv2.imdecode(np.frombuffer(blob, np.uint8), cv2.IMREAD_COLOR)
         return model_store.try_model(m.get("weights", ""), sample=frame)
 
+    def current_settings() -> dict:
+        """What the settings on the Check tab are right now.
+
+        One call rather than three: a page of blank fields does not tell you
+        whether a thing is unset or merely unshown, and "is parallax
+        correction on?" is exactly the question these boxes exist to answer.
+        """
+        out: dict = {"ball_set": bs.name, "ball_radius": table.ball_radius}
+        cams = CONFIG / "cameras.json"
+        if cams.exists():
+            try:
+                out["camera"] = json.loads(cams.read_text()).get("defaults")
+            except ValueError:
+                out["camera"] = None
+        return out
+
+    routes["/api/settings"] = current_settings
     routes["/api/detector"] = detector_status
     routes["/api/sessions"] = lambda: {"sessions": rec.list_sessions(RECORDINGS)}
     routes["/api/career"] = lambda: rec.career(RECORDINGS)
@@ -123,6 +140,10 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             detector_cfg, m.get("detector", "color"), m.get("weights", ""),
             float(m.get("conf", 0.4))),
         "/api/detector/test": test_detector,
+        "/api/table/ball_set": lambda m: cam.set_ball_set(m.get("name", "")),
+        "/api/camera/position": lambda m: cam.set_camera_position(
+            m.get("height_mm", 0), m.get("where", "overhead"),
+            m.get("out_mm", 0)),
         "/api/table/ball_radius": lambda m: cam.set_ball_radius(
             float(m.get("radius_mm", 0))),
         "/api/camera/check": lambda m: cam.run_check(
@@ -274,10 +295,20 @@ def camera_specs(args) -> list[dict]:
     cfg_path = CONFIG / "cameras.json"
     if getattr(args, "cameras", None):
         cfg_path = Path(args.cameras)
-    if cfg_path.exists() and not getattr(args, "source", None):
-        cams = json.loads(cfg_path.read_text()).get("cameras", [])
-        if cams:
-            return cams
+    saved: dict = {}
+    if cfg_path.exists():
+        try:
+            saved = json.loads(cfg_path.read_text())
+        except ValueError:
+            saved = {}
+    if saved.get("cameras") and not getattr(args, "source", None):
+        return saved["cameras"]
+    # Where the camera is does not change with which camera it is, so the
+    # position saved from the setup page applies whatever --source says.
+    # Only the flags override it; that way `start.bat --source kinect` does
+    # not silently throw away the parallax correction.
+    defaults = saved.get("defaults") or {}
+
     specs = [s.strip() for s in str(args.source or "auto").split(",") if s.strip()]
     out = []
     for i, spec in enumerate(specs):
@@ -285,8 +316,11 @@ def camera_specs(args) -> list[dict]:
         calib = (Path(args.calibration) if len(specs) == 1
                  else CONFIG / f"calibration-{name}.json")
         entry = {"name": name, "source": spec, "calibration": str(calib),
-                 "height_mm": getattr(args, "camera_height", 0.0) or 0.0}
+                 "height_mm": (getattr(args, "camera_height", 0.0)
+                               or float(defaults.get("height_mm") or 0.0))}
         nadir = getattr(args, "camera_nadir", None)
+        if not nadir and defaults.get("nadir") and len(specs) == 1:
+            entry["nadir"] = list(defaults["nadir"])
         if nadir and len(specs) > 1:
             raise SystemExit(
                 "--camera-nadir sets one position, but you have "

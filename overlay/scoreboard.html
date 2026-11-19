@@ -203,6 +203,54 @@
       <div class="cam-status" id="check-status">not run yet</div>
       <div class="checks" id="check-list"></div>
 
+      <div class="ball-size" id="ball-set-box">
+        <p class="note">
+          <b>Which balls.</b> This picks both the games that are playable and
+          the colour model used to read the cloth &mdash; reds and yellows
+          are two well separated hues, a numbered set is seven plus a
+          stripe test.
+        </p>
+        <div class="setup-actions">
+          <button class="chip" id="set-english"><b>Reds and yellows</b>
+            <i>English / blackball</i></button>
+          <button class="chip" id="set-american"><b>Numbered 1&ndash;15</b>
+            <i>American, unlocks 9-ball and cut-throat</i></button>
+        </div>
+        <div class="cam-status" id="ball-set-status" hidden></div>
+      </div>
+
+      <div class="ball-size" id="camera-position">
+        <p class="note">
+          <b>Where the camera is.</b> A ball's centre sits one radius above
+          the cloth, so the camera sees it pushed outward from the point
+          under the lens. Say where the lens is and that goes away entirely;
+          leave it and a side mount is out by about 26&nbsp;mm, against a
+          70&nbsp;mm pocket.
+        </p>
+        <div class="setup-actions">
+          <button class="chip" id="cam-overhead" aria-pressed="true">
+            <b>Overhead</b><i>above the middle of the table</i></button>
+          <button class="chip" id="cam-side">
+            <b>Long side</b><i>off to one side</i></button>
+          <button class="chip" id="cam-end">
+            <b>End on</b><i>past the baulk end</i></button>
+        </div>
+        <div class="setup-actions">
+          <label class="field inline">
+            <span>Height above the cloth, mm</span>
+            <input id="cam-height" type="number" min="0" max="10000"
+                   step="10" placeholder="2200">
+          </label>
+          <label class="field inline" id="cam-out-wrap" hidden>
+            <span>Out from the cushion, mm</span>
+            <input id="cam-out" type="number" min="0" max="5000" step="10"
+                   placeholder="1000">
+          </label>
+          <button id="cam-pos-save">Save</button>
+        </div>
+        <div class="cam-status" id="cam-pos-status" hidden></div>
+      </div>
+
       <div class="ball-size" id="ball-size">
         <p class="note">
           <b>Ball size.</b> The detector is told how big a ball is and reads

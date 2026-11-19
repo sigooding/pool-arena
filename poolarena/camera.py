@@ -238,6 +238,102 @@ class CameraService:
         return {"ok": True, "was": was, "now": cfg["ball_radius"],
                 "restart_needed": True}
 
+    def set_ball_set(self, name: str) -> dict[str, Any]:
+        """Reds and yellows, or numbered and striped.
+
+        Written to both configs on purpose. table.json decides which games
+        are playable; detector.json decides which colour model reads the
+        cloth. Setting one and not the other is how you end up with an
+        English rack being scored by a seven-hue American classifier.
+        """
+        name = str(name).strip().lower()
+        if name not in ("english", "american"):
+            return {"ok": False,
+                    "error": f"no such ball set {name!r} — english or american"}
+        cfgdir = self.calibration_path.parent
+        for fname, key in (("table.json", "ball_set"),
+                           ("detector.json", "ball_set")):
+            path = cfgdir / fname
+            try:
+                cfg = json.loads(path.read_text()) if path.exists() else {}
+            except ValueError as exc:
+                return {"ok": False, "error": f"config/{fname} will not parse: {exc}"}
+            cfg[key] = name
+            path.write_text(json.dumps(cfg, indent=2) + "\n")
+        return {"ok": True, "ball_set": name, "restart_needed": True}
+
+    def set_camera_position(self, height_mm: float, where: str = "overhead",
+                            out_mm: float = 0.0) -> dict[str, Any]:
+        """Where the camera is, so parallax can be taken out.
+
+        Given as a place and a distance rather than as coordinates, because
+        nobody mounting a camera on a Saturday wants to work out that the
+        point under the lens is at x=1117, y=-1000. The arithmetic is here.
+
+        A ball's centre sits one radius above the cloth, so the camera sees
+        it pushed outward from the point directly beneath the lens. Knowing
+        the height and that point removes it exactly — 26 mm to nothing on a
+        side mount. Not knowing them leaves it, and 26 mm against a 70 mm
+        pocket capture radius decides whether a hanging ball counts.
+        """
+        places = ("overhead", "long-side", "end")
+        if where not in places:
+            return {"ok": False, "error": f"where must be one of {places}"}
+        try:
+            height_mm = float(height_mm)
+            out_mm = float(out_mm or 0.0)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "height and distance must be numbers"}
+
+        # The floor is here to catch a unit mistake, not to be a physical
+        # limit: someone typing 2.2 for metres, or 220 for centimetres, is
+        # far likelier than someone genuinely mounting a camera half a metre
+        # over the cloth — and either would silently ruin the correction.
+        if 0 < height_mm < 500:
+            return {"ok": False,
+                    "error": f"{height_mm:g} is too low to be a camera height. "
+                             "This is millimetres above the cloth, so about "
+                             "2200 for a ceiling mount — not metres."}
+        if height_mm > 10000:
+            return {"ok": False,
+                    "error": f"{height_mm:g} mm is over ten metres. "
+                             "Millimetres above the cloth, not from the floor "
+                             "of the building."}
+
+        L, W = self.table.length, self.table.width
+        if where == "overhead":
+            nadir = [L / 2, W / 2]
+        elif where == "long-side":
+            # Outside the cushion, which is fine: it is a reference point for
+            # the geometry, not somewhere a ball can be.
+            nadir = [L / 2, -abs(out_mm)]
+        else:
+            nadir = [-abs(out_mm), W / 2]
+
+        path = self.calibration_path.parent / "cameras.json"
+        try:
+            cfg = json.loads(path.read_text()) if path.exists() else {}
+        except ValueError as exc:
+            return {"ok": False, "error": f"config/cameras.json will not parse: {exc}"}
+        if height_mm <= 0:
+            cfg.pop("defaults", None)      # turning the correction off again
+        else:
+            cfg["defaults"] = {"height_mm": round(height_mm, 1),
+                               "nadir": [round(n, 1) for n in nadir],
+                               "where": where, "out_mm": round(abs(out_mm), 1)}
+        path.write_text(json.dumps(cfg, indent=2) + "\n")
+
+        # What it is worth, so the number is not taken on faith.
+        r = float(self.table.ball_radius)
+        worst = 0.0
+        if height_mm > r:
+            far = max(((cx - nadir[0]) ** 2 + (cy - nadir[1]) ** 2) ** 0.5
+                      for cx, cy in ((0, 0), (L, 0), (0, W), (L, W)))
+            worst = r * far / (height_mm - r)
+        return {"ok": True, "nadir": nadir, "height_mm": height_mm,
+                "where": where, "corrects_up_to_mm": round(worst, 1),
+                "enabled": height_mm > 0, "restart_needed": True}
+
     # --- calibration -------------------------------------------------------
     def calibrate(self, points, image_size=None) -> dict[str, Any]:
         """Four clicked corners (TL, TR, BR, BL) in image pixels -> homography.

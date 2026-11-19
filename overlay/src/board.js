@@ -951,3 +951,88 @@ el('ball-radius-save').onclick = () =>
   saveBallRadius(Number(el('ball-radius').value));
 el('ball-radius-english').onclick = () => saveBallRadius(25.4);
 el('ball-radius-american').onclick = () => saveBallRadius(28.6);
+
+// --- which balls ----------------------------------------------------------
+async function saveBallSet(name) {
+  const status = el('ball-set-status');
+  status.hidden = false;
+  status.className = 'cam-status';
+  status.textContent = 'Saving…';
+  const r = await api('/api/table/ball_set', { name });
+  if (!r.ok) {
+    status.className = 'cam-status bad';
+    status.textContent = r.error || 'could not save';
+    return;
+  }
+  el('set-english').setAttribute('aria-pressed', String(name === 'english'));
+  el('set-american').setAttribute('aria-pressed', String(name === 'american'));
+  status.className = 'cam-status ready';
+  status.textContent = `Saved. Restart to use it — the rules and the colour `
+    + `model are both chosen when it starts.`;
+}
+el('set-english').onclick = () => saveBallSet('english');
+el('set-american').onclick = () => saveBallSet('american');
+
+// --- where the camera is --------------------------------------------------
+// Asked as a place and a distance, not as coordinates: nobody up a ladder
+// wants to work out that the point under the lens is x=1117, y=-1000.
+let camWhere = 'overhead';
+
+function pickCamWhere(where) {
+  camWhere = where;
+  for (const [id, w] of [['cam-overhead', 'overhead'], ['cam-side', 'long-side'],
+                         ['cam-end', 'end']]) {
+    el(id).setAttribute('aria-pressed', String(w === where));
+  }
+  el('cam-out-wrap').hidden = where === 'overhead';
+}
+el('cam-overhead').onclick = () => pickCamWhere('overhead');
+el('cam-side').onclick = () => pickCamWhere('long-side');
+el('cam-end').onclick = () => pickCamWhere('end');
+
+el('cam-pos-save').onclick = async () => {
+  const status = el('cam-pos-status');
+  status.hidden = false;
+  status.className = 'cam-status';
+  status.textContent = 'Saving…';
+  const r = await api('/api/camera/position', {
+    height_mm: Number(el('cam-height').value) || 0,
+    where: camWhere,
+    out_mm: Number(el('cam-out').value) || 0,
+  });
+  if (!r.ok) {
+    status.className = 'cam-status bad';
+    status.textContent = r.error || 'could not save';
+    return;
+  }
+  status.className = 'cam-status ready';
+  status.textContent = r.enabled
+    ? `Saved. Takes out up to ${r.corrects_up_to_mm} mm of parallax at the `
+      + `far corner. Restart to use it.`
+    : 'Parallax correction turned off. Restart to use it.';
+};
+
+// Show what is already set, rather than a page of blank boxes: an empty
+// field cannot tell you whether a thing is off or merely unshown, and "is
+// parallax correction on?" is the question these boxes exist to answer.
+fetch('/api/settings')
+  .then((r) => r.json())
+  .then((s) => {
+    if (s.ball_radius) el('ball-radius').value = s.ball_radius;
+    if (s.ball_set) {
+      el('set-english').setAttribute('aria-pressed', String(s.ball_set === 'english'));
+      el('set-american').setAttribute('aria-pressed', String(s.ball_set === 'american'));
+    }
+    const c = s.camera;
+    if (c && c.height_mm) {
+      el('cam-height').value = c.height_mm;
+      if (c.out_mm) el('cam-out').value = c.out_mm;
+      pickCamWhere(c.where || 'overhead');
+      const st = el('cam-pos-status');
+      st.hidden = false;
+      st.className = 'cam-status ready';
+      st.textContent = `Parallax correction is on: ${c.height_mm} mm up, `
+        + `${(c.where || 'overhead').replace('-', ' ')}.`;
+    }
+  })
+  .catch(() => {});
