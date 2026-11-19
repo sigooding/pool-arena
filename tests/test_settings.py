@@ -200,3 +200,121 @@ def test_a_full_camera_list_still_takes_priority(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "CONFIG", tmp_path)
     specs = m.camera_specs(Args())          # no --source
     assert len(specs) == 1 and specs[0]["height_mm"] == 2500
+
+
+# --- depth: the half that was missing -------------------------------------
+# Ball-finding in depth was written, tested, and documented in the CLI help,
+# and could not be switched on by anybody: it needs config/calibration-depth
+# .json and nothing in the project could produce that file. These cover the
+# path that was added, so it cannot quietly become unreachable again.
+import numpy as np
+
+
+def depth_frame():
+    """A cloth plane at 2.2 m with cushions standing proud and three balls."""
+    H, W = 424, 512
+    d = np.full((H, W), 6500.0, np.float32)       # beyond range = unread
+    y0, y1, x0, x1 = 90, 340, 40, 470
+    d[y0:y1, x0:x1] = 2200.0
+    rail = 12
+    d[y0:y0 + rail, x0:x1] = d[y1 - rail:y1, x0:x1] = 2130.0
+    d[y0:y1, x0:x0 + rail] = d[y0:y1, x1 - rail:x1] = 2130.0
+    for cx, cy in ((200, 200), (260, 180), (330, 250)):
+        yy, xx = np.ogrid[:H, :W]
+        d[(xx - cx) ** 2 + (yy - cy) ** 2 < 25] = 2200 - 51
+    return d
+
+
+class FakeKinect:
+    def read(self):
+        return (np.zeros((1080, 1920, 3), np.uint8), depth_frame())
+
+
+class ColourOnly:
+    def read(self):
+        return (np.zeros((1080, 1920, 3), np.uint8), None)
+
+
+def test_a_depth_frame_renders_to_something_you_can_click_on(svc):
+    pytest.importorskip("cv2")
+    svc.source = FakeKinect()
+    shot = svc.depth_snapshot(warm=2)
+    assert shot["ok"]
+    assert (shot["width"], shot["height"]) == (512, 424)
+    assert shot["image"].startswith("data:image/png;base64,")
+    # scaled to the table's own depth range, not the sensor's whole 0.5-4.5 m,
+    # or the cloth and the cushions come out the same shade
+    assert 2000 < shot["near_mm"] < shot["far_mm"] < 2400
+
+
+def test_unread_pixels_render_dark_not_bright(svc):
+    """They used to come out white, which merged the floor around the table
+    with the bright cushions and left nothing to aim a corner at."""
+    cv2 = pytest.importorskip("cv2")
+    import base64
+    svc.source = FakeKinect()
+    shot = svc.depth_snapshot(warm=2)
+    raw = base64.b64decode(shot["image"].split(",", 1)[1])
+    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_GRAYSCALE)
+    corner = float(img[5:40, 5:30].mean())     # outside the table: unread
+    rail = float(img[95:100, 100:400].mean())  # the cushion: nearest thing
+    assert corner < 40, "unread has to be dark"
+    assert rail > corner + 60, "and the rail has to stand out from it"
+
+
+def test_a_camera_with_no_depth_says_so_usefully(svc):
+    pytest.importorskip("cv2")
+    svc.source = ColourOnly()
+    r = svc.depth_snapshot(warm=2)
+    assert not r["ok"]
+    assert "kinect" in r["hint"].lower()
+
+
+def test_depth_calibration_writes_its_own_file(svc):
+    """Its own, not the colour one: different sensor, different field of
+    view, so one homography cannot serve both."""
+    r = svc.calibrate_depth([(40, 90), (470, 90), (470, 340), (40, 340)])
+    assert r["ok"]
+    assert Path(r["path"]).name == "calibration-depth.json"
+    assert not svc.calibration_path.exists(), "the colour calibration is untouched"
+
+
+def test_four_corners_are_required(svc):
+    assert not svc.calibrate_depth([(0, 0), (1, 1)])["ok"]
+
+
+def test_depth_status_follows_the_file(svc):
+    assert not svc.depth_status()["calibrated"]
+    svc.calibrate_depth([(40, 90), (470, 90), (470, 340), (40, 340)])
+    assert svc.depth_status()["calibrated"]
+
+
+def test_turning_depth_on_without_calibrating_warns_rather_than_lying(svc):
+    r = svc.set_depth_balls(True)
+    assert r["ok"] and r["depth_balls"] is True
+    assert not r["calibrated"]
+    assert "not calibrated" in r["note"], "it would silently do nothing"
+
+
+def test_turning_depth_on_after_calibrating_is_clean(svc):
+    svc.calibrate_depth([(40, 90), (470, 90), (470, 340), (40, 340)])
+    r = svc.set_depth_balls(True)
+    assert r["ok"] and r["calibrated"] and not r["note"]
+
+
+def test_the_depth_toggle_reaches_the_run_loop(tmp_path, monkeypatch):
+    """The setting is useless unless camera_specs carries it through."""
+    import poolarena.__main__ as m
+    (tmp_path / "cameras.json").write_text(json.dumps(
+        {"defaults": {"height_mm": 2200, "depth_balls": True}}))
+    monkeypatch.setattr(m, "CONFIG", tmp_path)
+    spec = m.camera_specs(Args(source="kinect"))[0]
+    assert spec.get("depth_balls") is True
+
+
+def test_depth_off_is_not_carried_through(tmp_path, monkeypatch):
+    import poolarena.__main__ as m
+    (tmp_path / "cameras.json").write_text(json.dumps(
+        {"defaults": {"height_mm": 2200, "depth_balls": False}}))
+    monkeypatch.setattr(m, "CONFIG", tmp_path)
+    assert "depth_balls" not in m.camera_specs(Args(source="kinect"))[0]

@@ -82,13 +82,44 @@ What you have, and it works:
 
 - **Colour:** 1920×1080 at 30 fps, wide field of view. At ~2 m over an 8 ft
   table a ball is about 35 px across, which is comfortable.
-- **Depth:** 512×424. Far too coarse to resolve balls (a ball is ~7 px), so
-  this code never tries. Depth is used for one thing only, and it is a good
-  thing: telling whether an arm, a cue or a body is over the cloth, which is
-  exactly when colour detection should be ignored. See
-  `VisionPipeline._depth_obstructed`.
+- **Depth:** 512×424, which is coarse but not useless — at 2.2 m that is
+  about 6 mm a pixel, so a ball is 8–9 px across and stands 51 mm proud of
+  the cloth against a few mm of sensor noise. It is used for two things.
+  One is telling whether an arm, a cue or a body is over the cloth, which is
+  exactly when colour should be ignored (`VisionPipeline._depth_obstructed`).
+  The other is finding the balls outright (`--depth-balls`), which is the
+  Kinect's real advantage: **a shadow has no depth and neither does glare**,
+  so under a hanging light depth keeps working where colour struggles. Depth
+  says *where* the balls are; colour still says which is which.
 - **Frame rate warning:** the Kinect's auto-exposure drops the colour stream to
   ~15 fps in dim light. Light the table properly or you will lose shots.
+
+**Where to put it.** The depth sensor's field of view is the binding
+constraint, not the colour camera's:
+
+| | Lowest mount that still sees the whole cloth (8 ft) |
+|---|---|
+| Depth, 70.6° × 60° | **1.58 m** above the cloth |
+| Colour, 84.1° × 53.8° | 1.24 m |
+
+The Kinect's depth is reliable from about 0.8 m to 4 m, so the usable window
+is **1.6 m to 4 m**, and the sweet spot is **1.8–2.2 m**:
+
+| Height | Depth resolution | A 51 mm ball is |
+|---|---|---|
+| 1.8 m | 5.0 mm/px | 10.2 px across |
+| 2.0 m | 5.5 mm/px | 9.2 px |
+| 2.2 m | 6.1 mm/px | 8.3 px |
+| 3.0 m | 8.3 mm/px | 6.1 px |
+
+Mount it landscape, long axis along the length of the table — that is the
+70.6° direction, and the table is twice as long as it is wide. Overhead and
+centred is best; a high side mount works too, but see *Can the camera go at
+the side of the table?* above for what it costs.
+
+Then tell the system where it is, on **Setup → Check → Where the camera is**.
+Without that, parallax is left in: 13 mm overhead, 26 mm from a side mount,
+against a 70 mm pocket.
 
 **USB is the fussy part.** Kinect v2 needs:
 
@@ -116,6 +147,14 @@ Connect camera** does the same from the UI. What it cannot do is install the
 driver for you: with no `pykinect2` or `pylibfreenect2` present, the sensor is
 invisible to Python no matter how it is plugged in. The Camera tab says so
 explicitly rather than just reporting "no camera".
+
+**Turning depth ball-finding on.** It needs its own calibration — the depth
+sensor is 512×424 with a different field of view, so the colour homography
+does not transfer. **Setup → Camera → Calibrate depth** shows the depth
+stream as a picture: the cushions are the bright rectangle, the cloth is dark
+inside it, black is where the sensor read nothing. Tap the four inside
+corners of the bright rail, save, then **Use depth to find balls**. Takes
+effect on the next restart.
 
 **Kinect v1 (Xbox 360): don't.** At 640×480 a ball is about 14 px across.
 

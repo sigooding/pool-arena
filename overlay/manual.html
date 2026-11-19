@@ -141,9 +141,19 @@
       <tr><td>Over 15&nbsp;mm</td><td>do it again</td></tr>
     </table>
     <p>If balls go missing in dark corners, light the table more evenly before
-    changing any setting. If you have a Kinect, <code>--depth-balls</code>
-    finds balls by shape instead of colour and does not care about light at
-    all.</p>
+    changing any setting.</p>
+    <p><b>If you have a Kinect</b>, depth is the one thing shadows cannot
+    touch &mdash; a shadow has no depth and neither does glare, so a ball is
+    simply 51&nbsp;mm of "nearer than the cloth" under any light at all.
+    Mount it <b>1.8&ndash;2.2&nbsp;m above the cloth</b>, landscape, long way
+    along the table: below about 1.6&nbsp;m the depth sensor cannot see the
+    whole cloth, and above 4&nbsp;m its depth readings stop being reliable.
+    Then <b>Setup &rarr; Camera &rarr; Calibrate depth</b> &mdash; it needs
+    its own four corners, because the depth sensor is 512&times;424 with a
+    different field of view and the colour calibration does not transfer.
+    Tap the inside corners of the bright rail, save, then <b>Use depth to
+    find balls</b>. Depth says where they are; colour still says which is
+    which.</p>
 
     <p><b>Setup &rarr; Check</b> holds the three things the camera needs to
     be told, all of which take effect on the next restart:</p>

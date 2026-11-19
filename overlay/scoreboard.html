@@ -122,6 +122,23 @@
         <button id="cam-undo" disabled>Undo corner</button>
         <button id="cam-save" disabled>Save calibration</button>
       </div>
+
+      <div class="warn-box" id="depth-box">
+        <strong>Depth, if you have a Kinect.</strong>
+        Depth does not care about light at all &mdash; a shadow has no depth
+        and neither does glare, so a ball is simply 51&nbsp;mm of "nearer
+        than the cloth" under any lighting, including none. It says
+        <em>where</em> the balls are; colour still says which is which.
+        <br><br>
+        The depth sensor is 512&times;424 with its own field of view, so it
+        needs its own four corners &mdash; the colour ones do not transfer.
+        <span id="depth-state"></span>
+      </div>
+      <div class="setup-actions">
+        <button id="depth-snap">Calibrate depth</button>
+        <button class="chip" id="depth-on">Use depth to find balls</button>
+        <span class="hint" id="depth-hint"></span>
+      </div>
       <div class="cam-shot" id="cam-shot" hidden>
         <div class="cam-prompt" id="cam-prompt"></div>
         <div class="cam-stage">

@@ -689,7 +689,13 @@ el('cam-connect').onclick = async () => {
   el('cam-snap').click();
 };
 
+// Which sensor the four corners being clicked belong to. The colour camera
+// and the depth sensor see the table differently enough that one homography
+// cannot serve both, so the same clicking flow is pointed at either.
+let camSensor = 'colour';
+
 el('cam-snap').onclick = async () => {
+  camSensor = 'colour';
   el('cam-prompt').textContent = 'taking a picture…';
   el('cam-shot').hidden = false;
   const r = await api('/api/camera/snapshot');
@@ -830,7 +836,8 @@ function drawCamPoints() {
 el('cam-save').onclick = async () => {
   // Fractions -> real pixels, using the picture's own size.
   const points = camPoints.map(([x, y]) => [x * camSize[0], y * camSize[1]]);
-  const r = await api('/api/camera/calibrate', { points });
+  const r = await api(camSensor === 'depth'
+    ? '/api/camera/calibrate_depth' : '/api/camera/calibrate', { points });
   const box = el('cam-status');
   if (!r.ok) {
     box.className = 'cam-status bad';
@@ -840,6 +847,9 @@ el('cam-save').onclick = async () => {
   box.className = 'cam-status ' + (r.quality === 'poor' ? 'bad' : 'ready');
   box.textContent = `Saved. Average error ${r.error_mm} mm (${r.quality}).` +
     (r.quality === 'poor' ? ' Re-do it: click exactly where the cloth meets the rail.' : '');
+  // Calibrating depth is what unlocks the depth toggle, so ask again rather
+  // than leaving it greyed out until somebody thinks to reload the page.
+  if (camSensor === 'depth' && r.ok) refreshDepth();
 };
 
 // --- go -------------------------------------------------------------------
@@ -1036,3 +1046,58 @@ fetch('/api/settings')
     }
   })
   .catch(() => {});
+
+// --- depth ----------------------------------------------------------------
+// Ball-finding in depth was written and tested and then could not be turned
+// on, because it needs its own calibration and nothing could make one. This
+// is the missing half: the same four corners, clicked on the depth picture.
+async function refreshDepth() {
+  const s = await fetch('/api/settings').then((r) => r.json()).catch(() => ({}));
+  const state = el('depth-state');
+  if (!state) return;
+  state.textContent = s.depth_calibrated
+    ? ' It is calibrated.'
+    : ' It is not calibrated yet.';
+  el('depth-on').disabled = !s.depth_calibrated;
+  el('depth-hint').textContent = s.depth_calibrated
+    ? '' : 'Calibrate depth first.';
+}
+refreshDepth();
+
+el('depth-snap').onclick = async () => {
+  camSensor = 'depth';
+  el('cam-prompt').textContent = 'reading the depth sensor…';
+  el('cam-shot').hidden = false;
+  const r = await api('/api/camera/depth_snapshot', {});
+  if (!r.ok) {
+    el('cam-prompt').textContent = [r.error, r.hint].filter(Boolean).join(' — ');
+    return;
+  }
+  camSize = [r.width, r.height];
+  const img = el('cam-img');
+  img.onload = () => { sizeCamOverlay(); drawCamPoints(); };
+  img.src = r.image;
+  camPoints = [];
+  updateCamPrompt();
+  // The picture is near-bright: the cushions are the bright rectangle, the
+  // cloth is dark inside it, and black is where the sensor read nothing.
+  el('cam-prompt').textContent =
+    `Depth, ${r.near_mm}–${r.far_mm} mm. Tap the four inside corners of the `
+    + `bright rail.`;
+};
+
+el('depth-on').onclick = async () => {
+  const on = el('depth-on').getAttribute('aria-pressed') !== 'true';
+  const r = await api('/api/camera/depth_balls', { on });
+  const box = el('cam-status');
+  if (!r.ok) {
+    box.className = 'cam-status bad';
+    box.textContent = r.error || 'could not save';
+    return;
+  }
+  el('depth-on').setAttribute('aria-pressed', String(r.depth_balls));
+  box.className = 'cam-status ' + (r.note ? 'bad' : 'ready');
+  box.textContent = r.note || (r.depth_balls
+    ? 'Depth will find the balls from the next restart. Colour still names them.'
+    : 'Back to colour only, from the next restart.');
+};

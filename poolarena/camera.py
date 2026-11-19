@@ -363,6 +363,106 @@ class CameraService:
                         else "usable" if calib.error_mm < 15 else "poor"),
         }
 
+    def set_depth_balls(self, on: bool) -> dict[str, Any]:
+        """Turn depth ball-finding on or off, and say if it cannot run yet."""
+        path = self.calibration_path.parent / "cameras.json"
+        try:
+            cfg = json.loads(path.read_text()) if path.exists() else {}
+        except ValueError as exc:
+            return {"ok": False, "error": f"config/cameras.json will not parse: {exc}"}
+        defaults = cfg.setdefault("defaults", {})
+        defaults["depth_balls"] = bool(on)
+        path.write_text(json.dumps(cfg, indent=2) + "\n")
+        ready = (self.calibration_path.parent / "calibration-depth.json").exists()
+        return {"ok": True, "depth_balls": bool(on), "calibrated": ready,
+                "restart_needed": True,
+                "note": "" if (ready or not on) else
+                        "Saved, but the depth sensor is not calibrated yet, so "
+                        "it will not take effect. Calibrate it below first."}
+
+    # --- the depth sensor --------------------------------------------------
+    def depth_snapshot(self, warm: int = 12) -> dict[str, Any]:
+        """The depth stream as a picture you can click on.
+
+        Depth finding balls was implemented and tested and then could not be
+        switched on, because it needs its own calibration and nothing could
+        produce one: the depth sensor is 512x424 with a different field of
+        view from the colour camera, so the colour homography does not
+        transfer. This is the missing half.
+
+        Rendered as near-to-far grey over the table's own depth range rather
+        than the sensor's full half-metre-to-four-metres, or the cushions and
+        the cloth come out the same shade and there is nothing to aim at.
+        """
+        import cv2
+        import numpy as np
+        with self._lock:
+            if self.source is None:
+                return {"ok": False, "error": "camera not open"}
+            depth = None
+            for _ in range(max(1, warm)):
+                got = self.source.read()
+                if got and len(got) > 1 and got[1] is not None:
+                    depth = got[1]
+            if depth is None:
+                return {"ok": False,
+                        "error": "no depth frame",
+                        "hint": "This camera has no depth stream. Depth needs "
+                                "a Kinect v2 and its driver — run kinect.bat."}
+        d = np.asarray(depth, dtype=np.float32)
+        live = d[(d > 300) & (d < 6000)]
+        if live.size < 100:
+            return {"ok": False, "error": "the depth frame is empty"}
+        # 5th to 95th percentile: the table fills most of the frame, so this
+        # spans cloth to cushion and ignores a stray reflection.
+        lo, hi = float(np.percentile(live, 5)), float(np.percentile(live, 95))
+        if hi - lo < 1.0:
+            lo, hi = live.min(), live.min() + 1.0
+        img = np.clip((d - lo) / (hi - lo), 0, 1)
+        grey = (255 * (1.0 - img)).astype(np.uint8)   # near is bright
+        # Black for anything the sensor did not read, and it has to be set
+        # after the inversion: doing it before turns "no reading" into the
+        # brightest thing in the frame, which merges the floor around the
+        # table with the cushions and leaves nothing to aim a corner at.
+        grey[(d <= 300) | (d >= 6000)] = 0
+        grey = cv2.applyColorMap(grey, cv2.COLORMAP_BONE)
+        ok, buf = cv2.imencode(".png", grey)
+        if not ok:
+            return {"ok": False, "error": "could not encode the depth frame"}
+        h, w = d.shape[:2]
+        return {"ok": True, "width": w, "height": h,
+                "near_mm": round(lo), "far_mm": round(hi),
+                "image": "data:image/png;base64," + base64.b64encode(
+                    buf.tobytes()).decode()}
+
+    def calibrate_depth(self, points, image_size=None) -> dict[str, Any]:
+        """Four corners clicked on the depth picture -> its own homography."""
+        if not points or len(points) != 4:
+            return {"ok": False, "error": "need exactly four corners"}
+        pts = [(float(p[0]), float(p[1])) for p in points]
+        if image_size:
+            shot = self.depth_snapshot(warm=1)
+            if shot.get("ok"):
+                sx = shot["width"] / float(image_size[0])
+                sy = shot["height"] / float(image_size[1])
+                pts = [(x * sx, y * sy) for x, y in pts]
+        calib = Calibration.from_corners(pts, self.table)
+        out = self.calibration_path.parent / "calibration-depth.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        calib.save(out)
+        return {"ok": True, "error_mm": round(calib.error_mm, 2),
+                "path": str(out),
+                "quality": ("good" if calib.error_mm < 8
+                            else "usable" if calib.error_mm < 20 else "poor"),
+                "note": "Depth is 512x424, so a pixel is about 6 mm at 2.2 m "
+                        "and a few millimetres of error here is expected — it "
+                        "says where a ball is, colour says which one."}
+
+    def depth_status(self) -> dict[str, Any]:
+        """Whether depth ball-finding is available and set up."""
+        out = self.calibration_path.parent / "calibration-depth.json"
+        return {"calibrated": out.exists(), "path": str(out)}
+
     def calibrate_markers(self) -> dict[str, Any]:
         """Calibrate from four printed markers instead of four clicks.
 

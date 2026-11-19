@@ -114,7 +114,8 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
         whether a thing is unset or merely unshown, and "is parallax
         correction on?" is exactly the question these boxes exist to answer.
         """
-        out: dict = {"ball_set": bs.name, "ball_radius": table.ball_radius}
+        out: dict = {"ball_set": bs.name, "ball_radius": table.ball_radius,
+                     "depth_calibrated": (CONFIG / "calibration-depth.json").exists()}
         cams = CONFIG / "cameras.json"
         if cams.exists():
             try:
@@ -141,6 +142,11 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             float(m.get("conf", 0.4))),
         "/api/detector/test": test_detector,
         "/api/table/ball_set": lambda m: cam.set_ball_set(m.get("name", "")),
+        "/api/camera/depth_snapshot": lambda m: cam.depth_snapshot(),
+        "/api/camera/calibrate_depth": lambda m: cam.calibrate_depth(
+            m.get("points"), m.get("image_size")),
+        "/api/camera/depth_balls": lambda m: cam.set_depth_balls(
+            bool(m.get("on"))),
         "/api/camera/position": lambda m: cam.set_camera_position(
             m.get("height_mm", 0), m.get("where", "overhead"),
             m.get("out_mm", 0)),
@@ -321,6 +327,8 @@ def camera_specs(args) -> list[dict]:
         nadir = getattr(args, "camera_nadir", None)
         if not nadir and defaults.get("nadir") and len(specs) == 1:
             entry["nadir"] = list(defaults["nadir"])
+        if defaults.get("depth_balls"):
+            entry["depth_balls"] = True
         if nadir and len(specs) > 1:
             raise SystemExit(
                 "--camera-nadir sets one position, but you have "
@@ -386,14 +394,14 @@ def cmd_run(args) -> int:
                               name=c["name"])
         depth_calib = Path(c.get("depth_calibration")
                            or CONFIG / "calibration-depth.json")
-        if args.depth_balls and depth_calib.exists():
+        if (args.depth_balls or c.get("depth_balls")) and depth_calib.exists():
             from .vision.depth import DepthBallFinder
             from .vision.multi import ColourAndDepth
             finder = DepthBallFinder(table=table,
                                      calibration=Calibration.load(depth_calib))
             pipe = ColourAndDepth(table, pipe, finder, name=c["name"])
             print(f"  depth       finding balls too ({depth_calib.name})")
-        elif args.depth_balls:
+        elif args.depth_balls or c.get("depth_balls"):
             print(f"  depth       asked for, but no {depth_calib} — "
                   f"calibrate the depth camera first", file=sys.stderr)
         views.append(CameraView(c["name"], open_source(c["source"]), pipe))
