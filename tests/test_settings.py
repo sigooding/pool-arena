@@ -436,3 +436,84 @@ def test_more_than_one_camera_is_called_out():
     from poolarena import camera
 
     assert "built-in" in inspect.getsource(camera.probe)
+
+
+# --- opening a virtual camera ---------------------------------------------
+# A Windows box reported three devices and would only open one. OpenCV had
+# picked its FFmpeg backend, which cannot see a virtual camera — Camo, OBS
+# and Continuity all register through DirectShow.
+def test_directshow_is_tried_before_the_default_on_windows(monkeypatch):
+    import cv2
+
+    from poolarena.vision import source
+
+    monkeypatch.setattr(source.sys if hasattr(source, "sys") else __import__("sys"),
+                        "platform", "win32", raising=False)
+    tried = []
+
+    class Cap:
+        def __init__(self, index, api=None):
+            tried.append(api)
+            self._ok = api == getattr(cv2, "CAP_DSHOW", -1)
+
+        def isOpened(self):
+            return self._ok
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", Cap)
+    import sys as _sys
+    monkeypatch.setattr(_sys, "platform", "win32")
+    cap = source._open_capture(cv2, 1)
+    assert cap.isOpened(), "the DirectShow attempt should have won"
+    assert tried[0] == getattr(cv2, "CAP_DSHOW", None), "and been tried first"
+
+
+def test_it_falls_back_when_directshow_is_not_the_one(monkeypatch):
+    import cv2
+    import sys as _sys
+
+    from poolarena.vision import source
+
+    monkeypatch.setattr(_sys, "platform", "win32")
+    tried = []
+
+    class Cap:
+        def __init__(self, index, api=None):
+            tried.append(api)
+            self._ok = api is None        # only the default works here
+
+        def isOpened(self):
+            return self._ok
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", Cap)
+    assert source._open_capture(cv2, 0).isOpened()
+    assert None in tried, "it has to end up at the library's own choice"
+
+
+def test_nothing_extra_is_tried_off_windows(monkeypatch):
+    import cv2
+    import sys as _sys
+
+    from poolarena.vision import source
+
+    monkeypatch.setattr(_sys, "platform", "linux")
+    tried = []
+
+    class Cap:
+        def __init__(self, index, api=None):
+            tried.append(api)
+
+        def isOpened(self):
+            return True
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", Cap)
+    source._open_capture(cv2, 0)
+    assert tried == [None], "no Windows-only backends on other platforms"

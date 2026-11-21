@@ -62,7 +62,8 @@ def probe() -> dict[str, Any]:
         # index is slow.
         misses = 0
         for index in range(MAX_CAMERA_INDEX + 1):
-            cap = cv2.VideoCapture(index)
+            from .vision.source import _open_capture
+            cap = _open_capture(cv2, index)
             ok = cap.isOpened()
             if ok:
                 misses = 0

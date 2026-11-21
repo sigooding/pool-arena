@@ -38,6 +38,32 @@ class FrameSource(ABC):
         self.close()
 
 
+def _open_capture(cv2, index: int):
+    """Open a camera, trying the backends that work on this platform.
+
+    OpenCV's default pick on Windows is FFmpeg, which cannot open a virtual
+    camera — Camo, OBS, Continuity and the rest all register through
+    DirectShow. The symptom is a machine that reports three devices and will
+    only open the built-in one. So ask for DirectShow first, then Media
+    Foundation, then whatever the default is.
+    """
+    import sys
+
+    backends = []
+    if sys.platform == "win32":
+        backends = [getattr(cv2, "CAP_DSHOW", None), getattr(cv2, "CAP_MSMF", None)]
+    backends.append(None)                       # the library's own choice
+    for api in backends:
+        try:
+            cap = cv2.VideoCapture(index) if api is None else cv2.VideoCapture(index, api)
+        except Exception:
+            continue
+        if cap.isOpened():
+            return cap
+        cap.release()
+    return cv2.VideoCapture(index)              # so the caller sees a real failure
+
+
 class WebcamSource(FrameSource):
     """Any UVC camera. The simplest thing that works for an overhead rig."""
 
@@ -47,7 +73,7 @@ class WebcamSource(FrameSource):
                  fps: float = 30.0, fourcc: str = "MJPG") -> None:
         import cv2
         self.cv2 = cv2
-        self.cap = cv2.VideoCapture(index)
+        self.cap = _open_capture(cv2, index)
         if fourcc:
             self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)

@@ -81,6 +81,10 @@ see what is actually there; it lists each one with its resolution, which is
 how you tell a phone from a laptop lid. If something else has the camera
 open (Teams, Zoom, the Camera app), close it first.
 
+**Three cameras listed but only one opens?** That was OpenCV reaching for
+its FFmpeg backend, which cannot see a Windows virtual camera. It now asks
+for DirectShow first. If you are on a build from before 21 November, pull.
+
 **Using a phone as the camera?** Camo, Continuity and OBS create the camera
 when the app connects, not when the phone is plugged in. Start the app, get
 the phone streaming, *then* run `cameras.bat`.
