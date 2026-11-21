@@ -318,3 +318,121 @@ def test_depth_off_is_not_carried_through(tmp_path, monkeypatch):
         {"defaults": {"height_mm": 2200, "depth_balls": False}}))
     monkeypatch.setattr(m, "CONFIG", tmp_path)
     assert "depth_balls" not in m.camera_specs(Args(source="kinect"))[0]
+
+
+# --- which camera ---------------------------------------------------------
+# `auto` opens the first camera that answers, which on a laptop is the lid.
+# Anyone using a phone as a webcam — Camo, Continuity, OBS — has at least two
+# and wants the second. The choice has to survive into `run`, or you pick it
+# on the tablet and the next start grabs the laptop again.
+def test_a_chosen_camera_is_saved(svc):
+    assert svc.set_camera_source("cam:2")["ok"]
+    assert cfg(svc, "cameras.json")["defaults"]["source"] == "cam:2"
+
+
+def test_auto_clears_the_choice_rather_than_storing_it(svc):
+    svc.set_camera_source("cam:2")
+    svc.set_camera_source("auto")
+    assert "source" not in cfg(svc, "cameras.json").get("defaults", {})
+
+
+@pytest.mark.parametrize("spec", ["cam:0", "kinect", "video:/tmp/x.mp4"])
+def test_the_real_kinds_are_accepted(svc, spec):
+    assert svc.set_camera_source(spec)["ok"]
+
+
+@pytest.mark.parametrize("spec", ["0", "my phone", "http://x"])
+def test_nonsense_is_refused_with_the_shapes_that_work(svc, spec):
+    r = svc.set_camera_source(spec)
+    assert not r["ok"] and "cam:0" in r["error"]
+
+
+def test_choosing_a_camera_does_not_lose_the_camera_position(svc):
+    svc.set_camera_position(2200, "long-side", 1000)
+    svc.set_camera_source("cam:2")
+    d = cfg(svc, "cameras.json")["defaults"]
+    assert d["source"] == "cam:2" and d["height_mm"] == 2200
+
+
+def test_the_saved_camera_is_what_run_opens(tmp_path, monkeypatch):
+    import poolarena.__main__ as m
+    (tmp_path / "cameras.json").write_text(json.dumps({"defaults": {"source": "cam:2"}}))
+    monkeypatch.setattr(m, "CONFIG", tmp_path)
+    assert m.camera_specs(Args())[0]["source"] == "cam:2"
+
+
+def test_an_explicit_source_still_wins(tmp_path, monkeypatch):
+    import poolarena.__main__ as m
+    (tmp_path / "cameras.json").write_text(json.dumps({"defaults": {"source": "cam:2"}}))
+    monkeypatch.setattr(m, "CONFIG", tmp_path)
+    assert m.camera_specs(Args(source="kinect"))[0]["source"] == "kinect"
+
+
+def test_with_nothing_saved_it_still_falls_back_to_auto(tmp_path, monkeypatch):
+    import poolarena.__main__ as m
+    monkeypatch.setattr(m, "CONFIG", tmp_path)
+    assert m.camera_specs(Args())[0]["source"] == "auto"
+
+
+# --- finding the camera at all --------------------------------------------
+class FakeCapture:
+    """Stands in for cv2.VideoCapture over a set of indices that exist."""
+
+    present: set[int] = set()
+
+    def __init__(self, index):
+        self.index = index
+
+    def isOpened(self):
+        return self.index in self.present
+
+    def get(self, _prop):
+        return 1920
+
+    def release(self):
+        pass
+
+
+def with_cameras(monkeypatch, present):
+    import cv2
+
+    from poolarena import camera
+
+    FakeCapture.present = set(present)
+    monkeypatch.setattr(cv2, "VideoCapture", FakeCapture)
+    # no Kinect in the way
+    monkeypatch.setattr(camera, "probe", camera.probe)
+    return camera
+
+
+def test_the_probe_looks_past_a_gap(monkeypatch):
+    """It used to stop at the first index that would not open. A virtual
+    camera — Camo, OBS, Continuity — often sits above the built-in one with
+    empty indices in between, so that meant never finding the camera the
+    table is actually pointed at.
+
+    Behaviour, not the source: the first version of this test grepped for a
+    variable name and passed with the bug put back.
+    """
+    camera = with_cameras(monkeypatch, {0, 3})
+    specs = [c["spec"] for c in camera.probe()["cameras"] if c["spec"].startswith("cam:")]
+    assert specs == ["cam:0", "cam:3"], "it has to keep looking past 1 and 2"
+
+
+def test_the_probe_still_stops_eventually(monkeypatch):
+    camera = with_cameras(monkeypatch, set())
+    assert [c for c in camera.probe()["cameras"] if c["spec"].startswith("cam:")] == []
+
+
+def test_a_camera_right_at_the_top_of_the_range_is_found(monkeypatch):
+    camera = with_cameras(monkeypatch, {0, camera_max := 4})
+    specs = [c["spec"] for c in camera.probe()["cameras"] if c["spec"].startswith("cam:")]
+    assert f"cam:{camera_max}" in specs
+
+
+def test_more_than_one_camera_is_called_out():
+    import inspect
+
+    from poolarena import camera
+
+    assert "built-in" in inspect.getsource(camera.probe)

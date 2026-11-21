@@ -115,6 +115,9 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
         correction on?" is exactly the question these boxes exist to answer.
         """
         out: dict = {"ball_set": bs.name, "ball_radius": table.ball_radius,
+                     "camera_source": (json.loads((CONFIG / "cameras.json").read_text())
+                                       .get("defaults", {}).get("source")
+                                       if (CONFIG / "cameras.json").exists() else None),
                      "depth_calibrated": (CONFIG / "calibration-depth.json").exists()}
         cams = CONFIG / "cameras.json"
         if cams.exists():
@@ -142,6 +145,7 @@ def start_server(engine_hub: Hub, table: Table, port: int, open_browser: bool,
             float(m.get("conf", 0.4))),
         "/api/detector/test": test_detector,
         "/api/table/ball_set": lambda m: cam.set_ball_set(m.get("name", "")),
+        "/api/camera/source": lambda m: cam.set_camera_source(m.get("spec", "")),
         "/api/camera/depth_snapshot": lambda m: cam.depth_snapshot(),
         "/api/camera/calibrate_depth": lambda m: cam.calibrate_depth(
             m.get("points"), m.get("image_size")),
@@ -320,7 +324,8 @@ def camera_specs(args) -> list[dict]:
     # not silently throw away the parallax correction.
     defaults = saved.get("defaults") or {}
 
-    specs = [s.strip() for s in str(args.source or "auto").split(",") if s.strip()]
+    chosen = getattr(args, "source", None) or defaults.get("source") or "auto"
+    specs = [s.strip() for s in str(chosen).split(",") if s.strip()]
     out = []
     for i, spec in enumerate(specs):
         name = spec.replace(":", "") or f"cam{i}"

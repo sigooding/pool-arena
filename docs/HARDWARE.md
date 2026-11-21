@@ -76,6 +76,22 @@ table centre recovers only 26 mm → 18 mm. It is worth measuring.
 end-on.** The reason to prefer overhead is not accuracy — the corrected
 numbers are identical — it is that overhead is forgiving of everything else.
 
+### A phone as the camera
+
+Camo, Continuity Camera and OBS all present the phone as an ordinary webcam,
+which works — a recent iPhone is a better sensor than most USB cameras, and
+1920×1080 over the table is plenty.
+
+The catch is which camera gets opened. `auto` takes the first index that
+answers, and on a laptop that is the lid. Pick the right one in Setup →
+Camera, or pass `--source cam:1`. The choice is saved, so `start.bat` uses it
+too. Tell them apart by resolution: the phone is usually 1920×1080 and a
+built-in webcam often 1280×720.
+
+Two things worth knowing before mounting a phone over a table: it needs to be
+on charge, because it will be running the camera for hours, and it must not
+go to sleep or rotate. Lock the orientation.
+
 ### Kinect v2 (Xbox One sensor)
 
 What you have, and it works:

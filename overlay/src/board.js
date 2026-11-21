@@ -669,6 +669,8 @@ async function refreshCamera() {
   try { st = await api('/api/camera/status'); }
   catch (e) { box.className = 'cam-status bad'; box.textContent = String(e); return; }
 
+  renderCameraChoices(st.cameras || []);
+
   const lines = [];
   if (st.open) {
     // An open camera beats the probe: the probe only lists devices it can
@@ -711,7 +713,7 @@ el('cam-markers').onclick = async () => {
 
 el('cam-connect').onclick = async () => {
   el('cam-status').textContent = 'connecting…';
-  const r = await api('/api/camera/open', { spec: 'auto' });
+  const r = await api('/api/camera/open', { spec: camChoice });
   if (!r.ok) {
     el('cam-status').className = 'cam-status bad';
     el('cam-status').textContent = r.error || 'could not open the camera';
@@ -1200,3 +1202,39 @@ el('quit').onclick = () => {
   if (mid && !confirm(`End this game? ${n} shot${n === 1 ? '' : 's'} played.`)) return;
   send({ type: 'end_game' });
 };
+
+// --- choosing a camera ----------------------------------------------------
+// `auto` takes the first camera that opens, which on a laptop is the built-in
+// one in the lid. Anyone using a phone as a webcam — Camo, Continuity, OBS —
+// has at least two, and the one over the table is never index 0.
+let camChoice = localStorage.getItem('poolarena.camera') || 'auto';
+
+function renderCameraChoices(cams) {
+  const wrap = el('cam-pick');
+  if (!wrap) return;
+  wrap.textContent = '';
+  // One camera needs no choosing.
+  wrap.hidden = !cams || cams.length < 2;
+  if (wrap.hidden) return;
+
+  for (const c of [{ spec: 'auto', label: 'Whatever is first' }, ...cams]) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(c.spec === camChoice));
+    const name = document.createElement('b');
+    name.textContent = c.spec === 'auto' ? 'Auto' : c.label;
+    const note = document.createElement('i');
+    note.textContent = c.spec === 'auto' ? 'the first that opens' : c.spec;
+    b.append(name, note);
+    b.onclick = async () => {
+      camChoice = c.spec;
+      localStorage.setItem('poolarena.camera', camChoice);
+      renderCameraChoices(cams);
+      // Saved on the server too, or start.bat would open the laptop lid
+      // again tomorrow regardless of what was picked here.
+      await api('/api/camera/source', { spec: camChoice }).catch(() => {});
+    };
+    wrap.appendChild(b);
+  }
+}

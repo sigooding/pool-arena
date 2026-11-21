@@ -910,3 +910,13 @@ body.no-game .bar { border-bottom: 0; background: transparent; }
 .who-sheet-go .go { flex: 1 1 auto; font-size: 16px; padding: 15px 20px; }
 #quit { color: #ff9db1; border-color: rgba(255, 77, 109, 0.4); }
 #quit:hover { background: rgba(255, 77, 109, 0.14); }
+
+
+/* --- choosing a camera ----------------------------------------------------
+   Only shown when there is more than one. A laptop with a phone plugged in
+   as a webcam has at least two, and `auto` reliably picks the wrong one. */
+.cam-pick { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+.cam-pick[hidden] { display: none; }
+.cam-pick .chip { padding: 9px 13px; }
+.cam-pick .chip b { font-size: 13px; }
+.cam-pick .chip i { font-size: 11px; }

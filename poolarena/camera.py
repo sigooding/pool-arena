@@ -21,6 +21,12 @@ from typing import Any
 from .geometry import Calibration, Table
 
 
+#: How far up the indices to look for a camera.
+MAX_CAMERA_INDEX = 8
+#: Stop after this many empty indices in a row.
+CAMERA_SCAN_GIVE_UP = 4
+
+
 def probe() -> dict[str, Any]:
     """What camera, if any, is plugged in — without claiming it.
 
@@ -44,17 +50,31 @@ def probe() -> dict[str, Any]:
 
     try:
         import cv2
-        for index in range(3):
+        try:                        # probing absent indices is noisy otherwise
+            cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)
+        except Exception:
+            pass
+        # Keep looking past a gap. Indices are not contiguous on Windows — a
+        # virtual camera like Camo or OBS often sits above the built-in one
+        # with nothing in between, and stopping at the first miss means never
+        # finding the camera the table is actually pointed at. Bounded by a
+        # run of empties rather than a hard limit, because opening a missing
+        # index is slow.
+        misses = 0
+        for index in range(MAX_CAMERA_INDEX + 1):
             cap = cv2.VideoCapture(index)
             ok = cap.isOpened()
             if ok:
+                misses = 0
                 w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 found.append({"spec": f"cam:{index}",
                               "label": f"Camera {index} ({w}x{h})" if w else f"Camera {index}",
                               "backend": "opencv"})
+            else:
+                misses += 1
             cap.release()
-            if not ok:
+            if misses >= CAMERA_SCAN_GIVE_UP:
                 break
     except ImportError:
         return {"cameras": found, "opencv": False,
@@ -64,6 +84,10 @@ def probe() -> dict[str, Any]:
         return {"cameras": found, "opencv": True, "hint": str(exc)}
 
     hint = ""
+    if len(found) > 1:
+        hint = ("More than one camera. `auto` takes the first, which is "
+                "usually the built-in one — pick the right one below if the "
+                "picture is of your laptop lid.")
     if not found:
         hint = ("No camera detected. For a Kinect v2: check it is on a USB 3 "
                 "port with its power supply, and that the driver is installed "
@@ -261,6 +285,32 @@ class CameraService:
             cfg[key] = name
             path.write_text(json.dumps(cfg, indent=2) + "\n")
         return {"ok": True, "ball_set": name, "restart_needed": True}
+
+    def set_camera_source(self, spec: str) -> dict[str, Any]:
+        """Remember which camera to open.
+
+        Saved rather than left in the browser, because the choice has to
+        survive into `run` — otherwise you pick the phone on the tablet and
+        the next start grabs the laptop lid again.
+        """
+        spec = str(spec or "").strip()
+        if spec and spec != "auto" and not spec.startswith(("cam:", "kinect", "video:")):
+            return {"ok": False, "error": f"{spec!r} is not a camera: "
+                                          "auto, cam:0, kinect or video:path"}
+        path = self.calibration_path.parent / "cameras.json"
+        try:
+            cfg = json.loads(path.read_text()) if path.exists() else {}
+        except ValueError as exc:
+            return {"ok": False, "error": f"config/cameras.json will not parse: {exc}"}
+        defaults = cfg.setdefault("defaults", {})
+        if not spec or spec == "auto":
+            defaults.pop("source", None)
+        else:
+            defaults["source"] = spec
+        if not defaults:
+            cfg.pop("defaults", None)
+        path.write_text(json.dumps(cfg, indent=2) + "\n")
+        return {"ok": True, "source": spec or "auto"}
 
     def set_camera_position(self, height_mm: float, where: str = "overhead",
                             out_mm: float = 0.0) -> dict[str, Any]:

@@ -118,6 +118,9 @@
         <button class="go" id="cam-markers">Calibrate from markers</button>
       </div>
 
+      <!-- Which camera. `auto` takes the first one, which on a laptop is
+           the built-in lid camera rather than the one over the table. -->
+      <div class="cam-pick" id="cam-pick" hidden></div>
       <div class="setup-actions">
         <button class="go" id="cam-connect">Connect camera</button>
         <button id="cam-snap" disabled>Take picture</button>
