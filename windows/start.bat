@@ -22,8 +22,8 @@ echo.
 echo   It stopped with an error - the message is above.
 echo.
 echo   "no calibration"          run calibrate.bat first
-echo   "cannot open camera"      another program has it, or try
-echo                             start.bat --source cam:1
+echo   "no camera at index N"    run cameras.bat to see what is
+echo                             actually there
 echo   "No module named numpy"   run setup.bat first
 echo.
 :stop

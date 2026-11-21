@@ -31,6 +31,7 @@ In the order you will want them. Double-click; no terminal, no typing.
 
 | | |
 |---|---|
+| **cameras.bat** | Lists every camera the machine can see. Run this first if the wrong one opens, or the right one will not. |
 | **setup.bat** | Run once. Makes a private Python environment in `.venv` and installs what it needs. Nothing it does touches the rest of the PC — delete `.venv` and it is all undone. |
 | **demo.bat** | No camera, no table. The games, the projector view and the scoreboard, all against a simulator. Start here. |
 | **calibrate.bat** | Teaches it where the table is in the camera picture. Once after the camera is mounted, and again if it moves. |
@@ -75,9 +76,14 @@ installer's first screen. Then run `setup.bat`.
 **"No module named numpy"** — `setup.bat` has not been run, or it did not
 finish.
 
-**"cannot open camera"** — something else has the camera open (Teams, Zoom,
-the Camera app), or it is on a different index. Try `start.bat --source
-cam:1`, then `cam:2`.
+**"no camera at index N"** — nothing is on that index. Run `cameras.bat` to
+see what is actually there; it lists each one with its resolution, which is
+how you tell a phone from a laptop lid. If something else has the camera
+open (Teams, Zoom, the Camera app), close it first.
+
+**Using a phone as the camera?** Camo, Continuity and OBS create the camera
+when the app connects, not when the phone is plugged in. Start the app, get
+the phone streaming, *then* run `cameras.bat`.
 
 **"no calibration"** — run `calibrate.bat`, or do it from the scoreboard:
 Setup, then Camera.

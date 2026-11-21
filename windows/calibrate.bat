@@ -22,7 +22,8 @@ exit /b 0
 :failed
 echo.
 echo   It stopped with an error - the message is above.
-echo   "cannot open camera" usually means another program has it open.
+echo   "no camera at index N" means nothing is on that index.
+echo   Run cameras.bat to see what this machine can actually find.
 echo.
 :stop
 pause

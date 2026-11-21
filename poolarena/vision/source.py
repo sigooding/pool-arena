@@ -58,7 +58,13 @@ class WebcamSource(FrameSource):
         self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
         self.fps = fps
         if not self.cap.isOpened():
-            raise RuntimeError(f"cannot open camera {index}")
+            # Two very different problems wear the same message otherwise:
+            # a camera that is busy, and a camera that was never there.
+            raise RuntimeError(
+                f"no camera at index {index}. Run `poolarena cameras` to see "
+                f"what this machine can find — and if you are using a phone, "
+                f"its app has to be running and streaming before the camera "
+                f"exists at all.")
 
     def read(self):
         ok, frame = self.cap.read()

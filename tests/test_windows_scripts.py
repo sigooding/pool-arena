@@ -113,3 +113,19 @@ def test_the_scripts_cover_what_a_setup_actually_needs():
     names = {p.stem for p in LAUNCHERS}
     for needed in ("setup", "demo", "start", "check", "calibrate"):
         assert needed in names, f"no {needed}.bat"
+
+
+def test_there_is_a_way_to_ask_what_cameras_exist():
+    """The first thing you need when the wrong camera opens — and the thing
+    that was missing when a phone-as-webcam setup went looking for cam:1 and
+    got a stack trace."""
+    assert (WINDOWS / "cameras.bat").is_file()
+    assert "poolarena cameras" in text(WINDOWS / "cameras.bat")
+
+
+def test_no_launcher_still_blames_another_program_for_a_missing_camera():
+    """It does not mean that, and it sent somebody hunting for a program
+    holding a camera that was never there."""
+    for script in LAUNCHERS:
+        body = text(script)
+        assert "another program has it" not in body, script.name

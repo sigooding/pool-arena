@@ -483,6 +483,29 @@ def cmd_run(args) -> int:
 
 
 # --- calibrate -----------------------------------------------------------
+def cmd_cameras(args) -> int:
+    """List what the machine can see. The first thing to run when the wrong
+    camera opens, or when the right one will not."""
+    from .camera import CAMERA_SCAN_GIVE_UP, MAX_CAMERA_INDEX, probe
+
+    print(f"\n  Looking for cameras (indices 0-{MAX_CAMERA_INDEX})...\n")
+    found = probe()
+    cams = found.get("cameras", [])
+    if not cams:
+        print("  None found.\n")
+    for c in cams:
+        print(f"    {c['spec']:<12} {c['label']}")
+    if found.get("hint"):
+        print(f"\n  {found['hint']}")
+    if cams:
+        print(f"\n  Use one with:  run --source {cams[-1]['spec']}")
+        print("  Or pick it on the scoreboard: Setup, then Camera.")
+    print("\n  A phone used as a webcam only appears while its app is "
+          "running\n  and actually streaming — Camo, OBS and the rest create "
+          "the\n  camera when they connect, not when the phone is plugged in.\n")
+    return 0 if cams else 1
+
+
 def cmd_doctor(args) -> int:
     """Walk the chain from the lens to a list of balls, and say where it breaks.
 
@@ -741,6 +764,10 @@ def main(argv: list[str] | None = None) -> int:
                         "clicks. More accurate, repeatable, and it lets the "
                         "camera re-calibrate itself if knocked.")
     c.set_defaults(func=cmd_calibrate)
+
+    sub.add_parser("cameras", parents=[common],
+                   help="list the cameras this machine can see"
+                   ).set_defaults(func=cmd_cameras)
 
     doc = sub.add_parser("doctor", parents=[common],
                          help="check the camera, calibration and detector "
