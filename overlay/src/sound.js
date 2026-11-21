@@ -28,9 +28,18 @@ function audio() {
 export function unlock() {
   const c = audio();
   if (c && c.state === 'suspended') c.resume();
+  // The intro loop asks to start long before anyone touches this screen, so
+  // the first gesture is where it actually gets to.
+  if (musicBlocked && musicWanted && music) {
+    music.play().then(() => { musicBlocked = false; }).catch(() => {});
+  }
 }
 
-export function setEnabled(on) { enabled = !!on; }
+export function setEnabled(on) {
+  enabled = !!on;
+  // The tune is not a separate switch. One 's' quiets the whole table.
+  if (!enabled && musicWanted) setMusic(false);
+}
 export function isEnabled() { return enabled; }
 export function setVolume(v) { if (master) master.gain.value = Math.max(0, Math.min(1, v)); }
 
@@ -131,3 +140,105 @@ export function play(name, args = {}) {
 }
 
 export function test() { unlock(); SOUNDS.pot(2); }
+
+// --- the intro tune -------------------------------------------------------
+// Everything above is synthesised. This is the one actual file, because a
+// tune is not something you build out of oscillators as it plays.
+//
+// It is an arcade attract jingle, not background music: it plays once, waits
+// ten minutes, and plays again, for as long as the table sits with no game
+// on it. Looping nineteen seconds forever would be authentic to a cabinet
+// and unbearable in a room people are trying to talk in.
+//
+// The first one comes half a minute after the table goes quiet. Not instant,
+// because a game has usually just ended and somebody is racking up; not ten
+// minutes, because then you would never know it worked.
+const MUSIC_SRC = '/audio/intro.mp3';
+const MUSIC_VOLUME = 0.30;
+const FADE_MS = 1200;
+const FIRST_AFTER_MS = 30_000;
+const THEN_EVERY_MS = 10 * 60_000;
+
+let music = null;
+let musicWanted = false;
+let fadeTimer = null;
+let nextTimer = null;
+/** Set when the browser refused to start it, so a later gesture can retry. */
+let musicBlocked = false;
+
+function musicEl() {
+  if (music) return music;
+  music = new Audio(MUSIC_SRC);
+  music.preload = 'auto';
+  music.volume = 0;
+  // A missing or unplayable file must not take the projector down with it.
+  music.addEventListener('error', () => { musicWanted = false; disarm(); });
+  music.addEventListener('ended', () => { if (musicWanted) arm(THEN_EVERY_MS); });
+  return music;
+}
+
+function fadeTo(target, done) {
+  const el = musicEl();
+  clearInterval(fadeTimer);
+  const from = el.volume;
+  const started = performance.now();
+  fadeTimer = setInterval(() => {
+    const k = Math.min(1, (performance.now() - started) / FADE_MS);
+    el.volume = Math.max(0, Math.min(1, from + (target - from) * k));
+    if (k >= 1) { clearInterval(fadeTimer); fadeTimer = null; if (done) done(); }
+  }, 40);
+}
+
+function disarm() {
+  clearTimeout(nextTimer);
+  nextTimer = null;
+}
+
+function arm(delay) {
+  disarm();
+  nextTimer = setTimeout(playOnce, delay);
+}
+
+function playOnce() {
+  if (!musicWanted || !enabled) return;
+  const el = musicEl();
+  el.currentTime = 0;
+  const started = el.play();
+  if (started && typeof started.catch === 'function') {
+    started
+      .then(() => { musicBlocked = false; })
+      // play() is refused until the page has been interacted with, which is
+      // most of the time for a screen nobody touches. Remember it, and let
+      // unlock() pick it up on the first keypress.
+      .catch(() => { musicBlocked = true; arm(THEN_EVERY_MS); });
+  }
+  fadeTo(MUSIC_VOLUME);
+}
+
+/**
+ * Say whether the table is idle. Safe to call every frame — it only acts on
+ * a change, so the render loop can just report what the table is doing.
+ */
+export function setMusic(on) {
+  const want = !!on && enabled;
+  if (want === musicWanted) return;
+  musicWanted = want;
+  if (want) {
+    arm(FIRST_AFTER_MS);
+  } else {
+    disarm();
+    if (music && !music.paused) {
+      fadeTo(0, () => { music.pause(); music.currentTime = 0; });
+    }
+  }
+}
+
+export function isMusicPlaying() {
+  return !!music && !music.paused && music.volume > 0;
+}
+
+/** For the tests, and for anyone wondering why it has gone quiet. */
+export function musicState() {
+  return { wanted: musicWanted, playing: isMusicPlaying(), blocked: musicBlocked,
+           armed: nextTimer !== null };
+}

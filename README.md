@@ -44,6 +44,9 @@ colour-coded shot feed:
   more, and the rack goes up when it runs out. The clock stops at the moment
   the cue was struck, not when the balls stopped rolling, so a long pot
   played in time still counts. Plays with reds and yellows.
+- **An intro tune** on the projector machine: once when the table goes
+  quiet, then every ten minutes while no game is on. Attract jingle, not
+  background music.
 - **27 projected effects**: pocket flares, explosions, ball trails, ghost-ball
   aiming lines with the tangent line and cut angle, glowing zones, a
   countdown clock, fireworks, lightning, on-cloth banners.
@@ -109,7 +112,7 @@ colour-coded shot feed:
   actually on, projected live, with what it will hit.
 - **Nothing lost on a restart.** `--resume` picks up a frame that was
   interrupted, and career totals span every recording.
-- **411 tests** covering geometry, shot detection, every rule set, the full
+- **418 tests** covering geometry, shot detection, every rule set, the full
   pipeline end to end, and the overlay's own effect timings (those run the
   JavaScript under node, and skip if node isn't installed).
 

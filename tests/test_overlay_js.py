@@ -11,6 +11,7 @@ table flash, a 4-second firework — quietly ran for exactly one second. The
 source looked completely correct. Only construction shows it.
 """
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -91,3 +92,61 @@ def test_a_zero_duration_effect_waits_to_be_cleared():
     assert zero, "expected the guide effects (aim line, zones, ...) to be open-ended"
     for name, v in zero.items():
         assert v["persist"], f"{name} has no duration and no persist: it dies on frame one"
+
+
+# --- the intro tune -------------------------------------------------------
+# Asked for as "not loop, play on idle every 10 mins or something". The
+# distinction matters: nineteen seconds on repeat is authentic to an arcade
+# cabinet and unbearable in a room people are talking in.
+SOUND = Path(__file__).resolve().parent.parent / "overlay" / "src" / "sound.js"
+MAIN = Path(__file__).resolve().parent.parent / "overlay" / "src" / "main.js"
+
+
+def test_the_tune_is_there_and_is_not_huge():
+    mp3 = Path(__file__).resolve().parent.parent / "overlay" / "audio" / "intro.mp3"
+    assert mp3.is_file(), "the projector asks for /audio/intro.mp3"
+    assert mp3.stat().st_size < 3_000_000, "a jingle, not an album"
+
+
+def test_it_does_not_loop():
+    """The one thing that was explicitly not wanted."""
+    src = SOUND.read_text()
+    music = src.split("--- the intro tune ---", 1)[1]
+    assert "loop = true" not in music
+    assert ".loop" not in music, "it plays once and is rescheduled, never looped"
+
+
+def test_it_waits_between_plays_rather_than_running_continuously():
+    src = SOUND.read_text()
+    assert "THEN_EVERY_MS" in src
+    gap = re.search(r"const THEN_EVERY_MS = ([^;]+);", src).group(1)
+    assert "60_000" in gap, "the gap should be in minutes, not seconds"
+    first = re.search(r"const FIRST_AFTER_MS = ([^;]+);", src).group(1)
+    assert "30_000" in first, "and the first one shortly after the table goes quiet"
+
+
+def test_the_tune_follows_whether_a_game_is_on():
+    """No game is the projector's version of the tablet's splash."""
+    assert "sound.setMusic(scene.scoreboard == null)" in MAIN.read_text()
+
+
+def test_muting_everything_mutes_the_tune_too():
+    """One 's' quiets the table. A separate music switch nobody can find is
+    worse than no music."""
+    src = SOUND.read_text()
+    body = src.split("export function setEnabled", 1)[1].split("}", 1)[0]
+    assert "setMusic(false)" in body
+
+
+def test_a_blocked_autoplay_is_retried_on_the_first_gesture():
+    """The projector is a screen nobody touches, so play() is refused on
+    load. Verified in a browser: blocked on arrival, playing after one
+    keypress."""
+    src = SOUND.read_text()
+    unlock = src.split("export function unlock()", 1)[1].split("\n}", 1)[0]
+    assert "musicBlocked" in unlock and "play()" in unlock
+
+
+def test_a_missing_file_does_not_take_the_projector_down():
+    src = SOUND.read_text()
+    assert "addEventListener('error'" in src

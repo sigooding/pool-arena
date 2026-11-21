@@ -317,6 +317,11 @@ function frame(now) {
   for (const fx of effects) fx.update(dt);
   effects = effects.filter((fx) => !fx.done);
 
+  // No game on the table is the projector's version of the tablet's splash,
+  // and it is when the intro tune plays. setMusic only acts on a change, so
+  // saying it every frame is free.
+  sound.setMusic(scene.scoreboard == null);
+
   // Clip to the table quad. Without this an explosion throws sparks onto the
   // players and the floor, which looks like a fault rather than an effect —
   // the cloth is the screen, and nothing should land outside it.
@@ -386,7 +391,7 @@ const HELP = [
   ['b', 'draw tracked balls (alignment check)'],
   ['t', 'trails on/off'],
   ['o', 'clip effects to the table (default on)'],
-  ['s', 'sound on/off'],
+  ['s', 'sound and music on/off'],
   ['a', 'preview the attract mode'],
   ['x', 'test explosion'],
   ['g', 'test pocket glows'],
