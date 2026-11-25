@@ -32,7 +32,7 @@ set "PY=.venv\Scripts\python.exe"
 
 echo   Installing numpy and OpenCV ...
 "%PY%" -m pip install --upgrade pip --quiet
-"%PY%" -m pip install numpy "opencv-python>=4.8" || goto :failed
+"%PY%" -m pip install numpy "opencv-python>=4.8,<5" || goto :failed
 
 rem Installed is not the same as working: a half-finished download leaves a
 rem package that imports and then falls over. Better to find out now than

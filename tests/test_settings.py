@@ -517,3 +517,40 @@ def test_nothing_extra_is_tried_off_windows(monkeypatch):
     monkeypatch.setattr(cv2, "VideoCapture", Cap)
     source._open_capture(cv2, 0)
     assert tried == [None], "no Windows-only backends on other platforms"
+
+
+def test_opencv_5_on_windows_is_called_out(monkeypatch):
+    """It counts virtual cameras and cannot open them, so a phone used as a
+    webcam appears in the device total and nowhere in the list. Silence
+    there cost an afternoon."""
+    import sys as _sys
+
+    import cv2
+
+    from poolarena import camera
+
+    monkeypatch.setattr(_sys, "platform", "win32")
+    monkeypatch.setattr(cv2, "__version__", "5.1.0", raising=False)
+    msg = camera._opencv_cannot_see_virtual_cameras()
+    assert "opencv-python>=4.8,<5" in msg, "and says how to fix it"
+
+
+def test_opencv_4_on_windows_is_fine(monkeypatch):
+    import sys as _sys
+
+    import cv2
+
+    from poolarena import camera
+
+    monkeypatch.setattr(_sys, "platform", "win32")
+    monkeypatch.setattr(cv2, "__version__", "4.14.0", raising=False)
+    assert camera._opencv_cannot_see_virtual_cameras() == ""
+
+
+def test_the_cap_is_in_the_packaging_too(monkeypatch):
+    """A warning is no good if a fresh setup installs the broken one again."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    assert '"opencv-python>=4.8,<5"' in (root / "pyproject.toml").read_text()
+    assert b'opencv-python>=4.8,<5' in (root / "windows" / "setup.bat").read_bytes()

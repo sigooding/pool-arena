@@ -14,7 +14,11 @@ license = { text = "MIT" }
 dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
-vision = ["opencv-python>=4.8"]
+# Capped below 5 on purpose: OpenCV 5's Windows build dropped the
+# DirectShow and Media Foundation videoio backends, leaving FFmpeg,
+# which can count virtual cameras but cannot open one. A phone used as
+# a webcam is then visible in the device list and unusable.
+vision = ["opencv-python>=4.8,<5"]
 kinect-linux = ["pylibfreenect2>=0.1.4"]
 kinect-windows = ["pykinect2>=0.1.0"]
 yolo = ["ultralytics>=8.0"]

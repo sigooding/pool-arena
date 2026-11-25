@@ -27,6 +27,29 @@ MAX_CAMERA_INDEX = 8
 CAMERA_SCAN_GIVE_UP = 4
 
 
+def _opencv_cannot_see_virtual_cameras() -> str:
+    """OpenCV 5 on Windows dropped DirectShow and Media Foundation from
+    videoio, leaving FFmpeg — which lists virtual cameras and cannot open
+    them. A phone used as a webcam shows up in the count and nowhere else.
+    """
+    import sys
+
+    if sys.platform != "win32":
+        return ""
+    try:
+        import cv2
+    except ImportError:
+        return ""
+    major = str(getattr(cv2, "__version__", "")).split(".")[0]
+    if major.isdigit() and int(major) >= 5:
+        return ("This is OpenCV " + cv2.__version__ + ", whose Windows build "
+                "cannot open a virtual camera — a phone used as a webcam will "
+                "be counted and not listed. Fix it with:\n"
+                "    .venv\\Scripts\\python.exe -m pip install "
+                "\"opencv-python>=4.8,<5\"")
+    return ""
+
+
 def probe() -> dict[str, Any]:
     """What camera, if any, is plugged in — without claiming it.
 
@@ -85,7 +108,10 @@ def probe() -> dict[str, Any]:
         return {"cameras": found, "opencv": True, "hint": str(exc)}
 
     hint = ""
-    if len(found) > 1:
+    bad_build = _opencv_cannot_see_virtual_cameras()
+    if bad_build:
+        hint = bad_build
+    elif len(found) > 1:
         hint = ("More than one camera. `auto` takes the first, which is "
                 "usually the built-in one — pick the right one below if the "
                 "picture is of your laptop lid.")
